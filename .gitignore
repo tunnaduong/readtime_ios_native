@@ -1,0 +1,7 @@
+# Local secrets (see ReadTime/Config/Secrets.example.xcconfig)
+ReadTime/Config/Secrets.xcconfig
+
+# Xcode
+xcuserdata/
+DerivedData/
+.DS_Store

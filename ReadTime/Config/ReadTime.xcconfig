@@ -1,0 +1,22 @@
+// Shared build settings for the ReadTime target.
+// Secrets live in Secrets.xcconfig, which is git-ignored. Copy Secrets.example.xcconfig
+// to Secrets.xcconfig and fill in your values. The build still works without it.
+
+// Google AdMob — app "ReadTime" (ca-app-pub-9033651898132595~5071944339).
+// Debug builds use Google's test ad units so testing never counts as invalid traffic;
+// Release builds use the real units created in AdMob. An empty unit ID turns that ad type off.
+ADMOB_APP_ID = ca-app-pub-9033651898132595~5071944339
+
+// Banner (readtime_banner_nav)
+ADMOB_BANNER_UNIT_ID = ca-app-pub-3940256099942544/2435281174
+ADMOB_BANNER_UNIT_ID[config=Release] = ca-app-pub-9033651898132595/1193988087
+
+// Interstitial after a reading session (readtime_banner_full_screen)
+ADMOB_INTERSTITIAL_UNIT_ID = ca-app-pub-3940256099942544/4411468910
+ADMOB_INTERSTITIAL_UNIT_ID[config=Release] = ca-app-pub-9033651898132595/7799371994
+
+// App open. (readtime_banner_app_open)
+ADMOB_APP_OPEN_UNIT_ID = ca-app-pub-3940256099942544/5575463023
+ADMOB_APP_OPEN_UNIT_ID[config=Release] = ca-app-pub-9033651898132595/2326361499
+
+#include? "Secrets.xcconfig"
