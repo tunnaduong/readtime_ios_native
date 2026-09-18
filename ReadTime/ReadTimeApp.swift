@@ -2,9 +2,9 @@ import SwiftUI
 import Combine
 import CryptoKit
 import UserNotifications
-import UIKit
 import UniformTypeIdentifiers
 #if !SKIP
+import UIKit
 // Frameworks with no Skip/Android equivalent: Skip transpiles this file to
 // Kotlin/Compose, so these are compiled only for the Darwin (iOS) target. Each
 // type that depends on one of these has an `#else` branch below with an
