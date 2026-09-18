@@ -4472,7 +4472,16 @@ struct FeatureRequest: Identifiable, Hashable, Codable {
     var hasVoted: Bool
 }
 
-#if !SKIP
+/// Reads/writes the CloudKit public database: natively on iOS, and over
+/// CloudKit Web Services (see `CloudKitWebService` above) on Android -- a
+/// single class with #if !SKIP branches inside its members, rather than two
+/// separate class declarations. (Two full duplicate declarations under
+/// #if/#else was the pattern used elsewhere in this file, e.g. CloudBackup,
+/// PurchaseManager, AdManager -- but it seems to be what caused Skip's
+/// bridging to report `[FeatureRequest]`/`FeatureRequest` as "not a bridged
+/// type" here specifically: `ReadingStore`, declared only once, exposes
+/// `Book`-typed methods with no such error. Unverified; if this doesn't fix
+/// it, the theory is wrong and something else is going on.)
 @MainActor
 final class RoadmapStore: ObservableObject {
     static let containerIdentifier = "iCloud.com.fatties.readtime"
@@ -4480,18 +4489,23 @@ final class RoadmapStore: ObservableObject {
     @Published private(set) var requests: [FeatureRequest] = []
     @Published private(set) var isLoading = false
     @Published private(set) var loadFailed = false
-    /// False when there's no iCloud account on the device, which blocks the public database too.
+    /// False when there's no iCloud account on the device (iOS) -- always
+    /// true on Android, which has no per-device Apple ID sign-in gate, only
+    /// the app-wide server-to-server key.
     @Published private(set) var isSignedIn = true
     @Published var message: String?
 
+    #if !SKIP
     private let container = CKContainer(identifier: RoadmapStore.containerIdentifier)
     private var database: CKDatabase { container.publicCloudDatabase }
     private var userID: CKRecord.ID?
+    #endif
 
     func load() async {
         isLoading = true
         loadFailed = false
         defer { isLoading = false }
+        #if !SKIP
         isSignedIn = (try? await container.accountStatus()) == .available
         userID = try? await container.userRecordID()
         do {
@@ -4531,94 +4545,7 @@ final class RoadmapStore: ObservableObject {
         } catch {
             loadFailed = true
         }
-    }
-
-    func toggleVote(for request: FeatureRequest) async {
-        guard let userID else {
-            message = String(localized: "Sign in to iCloud in the Settings app to vote.")
-            return
-        }
-        guard let index = requests.firstIndex(where: { $0.id == request.id }) else { return }
-        let recordID = CKRecord.ID(recordName: "vote-\(request.id)-\(userID.recordName)")
-        let wasVoted = requests[index].hasVoted
-        requests[index].hasVoted.toggle()
-        requests[index].votes += wasVoted ? -1 : 1
-
-        do {
-            if wasVoted {
-                try await database.deleteRecord(withID: recordID)
-            } else {
-                let vote = CKRecord(recordType: "Vote", recordID: recordID)
-                vote["featureName"] = request.id
-                try await database.save(vote)
-            }
-        } catch let error as CKError where error.code == .serverRecordChanged || error.code == .unknownItem {
-            // Already voted (or already removed) on another device; the local state is now correct.
-        } catch {
-            if let index = requests.firstIndex(where: { $0.id == request.id }) {
-                requests[index].hasVoted = wasVoted
-                requests[index].votes += wasVoted ? 1 : -1
-            }
-            message = error.localizedDescription
-        }
-    }
-
-    func suggest(title: String, details: String) async -> Bool {
-        guard userID != nil else {
-            message = String(localized: "Sign in to iCloud in the Settings app to suggest a feature.")
-            return false
-        }
-        let record = CKRecord(recordType: "FeatureRequest")
-        record["title"] = title
-        record["details"] = details
-        record["status"] = FeatureRequestStatus.inReview.rawValue
-        record["listed"] = 0 as Int64
-        do {
-            try await database.save(record)
-            message = String(localized: "Thanks! Your suggestion will appear on the roadmap once it's been reviewed.")
-            return true
-        } catch {
-            message = error.localizedDescription
-            return false
-        }
-    }
-
-    private func fetchAll(_ query: CKQuery) async throws -> [CKRecord] {
-        var records: [CKRecord] = []
-        var (results, cursor) = try await database.records(matching: query)
-        records += results.compactMap { try? $0.1.get() }
-        while let next = cursor {
-            (results, cursor) = try await database.records(continuingMatchFrom: next)
-            records += results.compactMap { try? $0.1.get() }
-        }
-        return records
-    }
-}
-#else
-/// Reads/writes the same CloudKit public database as iOS, over CloudKit Web
-/// Services (see `CloudKitWebService` above). `CloudKitWebService.installID`
-/// stands in for the signed-in Apple ID iOS uses to key each `Vote` record.
-@MainActor
-final class RoadmapStore: ObservableObject {
-    static let containerIdentifier = "iCloud.com.fatties.readtime"
-
-    // Not private(set): unlike the private(set) Bool/String properties below,
-    // Skip's bridging couldn't handle `[FeatureRequest]` with a private
-    // setter ("does not appear to be a bridged type") -- `@Published var books:
-    // [Book]` elsewhere in this file (no private(set)) bridges fine, so trying
-    // this next. Unverified.
-    @Published var requests: [FeatureRequest] = []
-    @Published private(set) var isLoading = false
-    @Published private(set) var loadFailed = false
-    /// Always true on Android: there's no per-device Apple ID sign-in gate here,
-    /// only the app-wide server-to-server key.
-    @Published private(set) var isSignedIn = true
-    @Published var message: String?
-
-    func load() async {
-        isLoading = true
-        loadFailed = false
-        defer { isLoading = false }
+        #else
         do {
             let featureResult = try await CloudKitWebService.request(path: "records/query", body: [
                 "query": ["recordType": "FeatureRequest"]
@@ -4673,9 +4600,39 @@ final class RoadmapStore: ObservableObject {
         } catch {
             loadFailed = true
         }
+        #endif
     }
 
     func toggleVote(for request: FeatureRequest) async {
+        #if !SKIP
+        guard let userID else {
+            message = String(localized: "Sign in to iCloud in the Settings app to vote.")
+            return
+        }
+        guard let index = requests.firstIndex(where: { $0.id == request.id }) else { return }
+        let recordID = CKRecord.ID(recordName: "vote-\(request.id)-\(userID.recordName)")
+        let wasVoted = requests[index].hasVoted
+        requests[index].hasVoted.toggle()
+        requests[index].votes += wasVoted ? -1 : 1
+
+        do {
+            if wasVoted {
+                try await database.deleteRecord(withID: recordID)
+            } else {
+                let vote = CKRecord(recordType: "Vote", recordID: recordID)
+                vote["featureName"] = request.id
+                try await database.save(vote)
+            }
+        } catch let error as CKError where error.code == .serverRecordChanged || error.code == .unknownItem {
+            // Already voted (or already removed) on another device; the local state is now correct.
+        } catch {
+            if let index = requests.firstIndex(where: { $0.id == request.id }) {
+                requests[index].hasVoted = wasVoted
+                requests[index].votes += wasVoted ? 1 : -1
+            }
+            message = error.localizedDescription
+        }
+        #else
         guard let index = requests.firstIndex(where: { $0.id == request.id }) else { return }
         let recordName = "vote-\(request.id)-\(CloudKitWebService.installID)"
         let wasVoted = requests[index].hasVoted
@@ -4709,9 +4666,29 @@ final class RoadmapStore: ObservableObject {
             }
             message = error.localizedDescription
         }
+        #endif
     }
 
     func suggest(title: String, details: String) async -> Bool {
+        #if !SKIP
+        guard userID != nil else {
+            message = String(localized: "Sign in to iCloud in the Settings app to suggest a feature.")
+            return false
+        }
+        let record = CKRecord(recordType: "FeatureRequest")
+        record["title"] = title
+        record["details"] = details
+        record["status"] = FeatureRequestStatus.inReview.rawValue
+        record["listed"] = 0 as Int64
+        do {
+            try await database.save(record)
+            message = String(localized: "Thanks! Your suggestion will appear on the roadmap once it's been reviewed.")
+            return true
+        } catch {
+            message = error.localizedDescription
+            return false
+        }
+        #else
         do {
             _ = try await CloudKitWebService.request(path: "records/modify", body: [
                 "operations": [[
@@ -4733,9 +4710,22 @@ final class RoadmapStore: ObservableObject {
             message = error.localizedDescription
             return false
         }
+        #endif
     }
+
+    #if !SKIP
+    private func fetchAll(_ query: CKQuery) async throws -> [CKRecord] {
+        var records: [CKRecord] = []
+        var (results, cursor) = try await database.records(matching: query)
+        records += results.compactMap { try? $0.1.get() }
+        while let next = cursor {
+            (results, cursor) = try await database.records(continuingMatchFrom: next)
+            records += results.compactMap { try? $0.1.get() }
+        }
+        return records
+    }
+    #endif
 }
-#endif
 
 struct RoadmapView: View {
     @StateObject var roadmap = RoadmapStore()
