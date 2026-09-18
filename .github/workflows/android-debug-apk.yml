@@ -75,8 +75,11 @@ jobs:
 
       # The Swift Android SDK (a cross-compilation toolchain, separate from
       # the Xcode/host Swift toolchain) that `skip android build` needs.
+      # Pinned explicitly: letting it auto-resolve "latest" picked 6.4.0,
+      # which 404s at download.swift.org (not actually released yet) —
+      # confirmed 6.1 exists there.
       - name: Install the Swift Android SDK
-        run: skip android sdk install
+        run: skip android sdk install --version 6.1.0
 
       # Skip Fuse's real Android artifact: cross-compiles this same Swift
       # source natively for Android via the SDK above. Headless — no
