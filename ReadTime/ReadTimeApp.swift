@@ -4602,7 +4602,12 @@ final class RoadmapStore: ObservableObject {
 final class RoadmapStore: ObservableObject {
     static let containerIdentifier = "iCloud.com.fatties.readtime"
 
-    @Published private(set) var requests: [FeatureRequest] = []
+    // Not private(set): unlike the private(set) Bool/String properties below,
+    // Skip's bridging couldn't handle `[FeatureRequest]` with a private
+    // setter ("does not appear to be a bridged type") -- `@Published var books:
+    // [Book]` elsewhere in this file (no private(set)) bridges fine, so trying
+    // this next. Unverified.
+    @Published var requests: [FeatureRequest] = []
     @Published private(set) var isLoading = false
     @Published private(set) var loadFailed = false
     /// Always true on Android: there's no per-device Apple ID sign-in gate here,
