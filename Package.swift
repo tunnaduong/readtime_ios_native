@@ -18,11 +18,13 @@ let package = Package(
         .package(url: "https://source.skip.tools/skip.git", from: "1.0.0"),
         .package(url: "https://source.skip.tools/skip-ui.git", from: "1.0.0"),
         .package(url: "https://source.skip.tools/skip-fuse.git", from: "1.0.0"),
-        // Cross-platform purchases: wraps StoreKit on iOS and Play Billing on
-        // Android behind one API, so PurchaseManager's Android branch doesn't
-        // need to hand-roll Play Billing's Kotlin API. Needs a RevenueCat
-        // account/API keys — see README.md "Android (Skip)".
-        .package(url: "https://source.skip.dev/skip-revenue.git", "0.0.0"..<"2.0.0"),
+        // TODO(android): re-add "https://source.skip.dev/skip-revenue.git" for
+        // cross-platform purchases once the toolchain here can resolve it —
+        // its manifest requires Swift tools-version 6.1, which was
+        // incompatible with the toolchain CI resolved against ("'skip-revenue'
+        // contains incompatible tools version (6.1.0)"). Dropped for now so
+        // dependency resolution (and the Android build) can proceed;
+        // PurchaseManager's Android branch is back to a stub in the meantime.
     ],
     targets: [
         .target(
@@ -30,7 +32,6 @@ let package = Package(
             dependencies: [
                 .product(name: "SkipUI", package: "skip-ui"),
                 .product(name: "SkipFuse", package: "skip-fuse"),
-                .product(name: "SkipRevenue", package: "skip-revenue"),
             ],
             path: "ReadTime",
             exclude: [

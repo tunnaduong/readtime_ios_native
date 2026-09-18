@@ -10,18 +10,19 @@ This branch adds the groundwork to build ReadTime for Android with [Skip](https:
 - Skip package scaffolding (`Package.swift`, `Skip.env`, `ReadTime/Skip/skip.yml`, `Tests/`) added on top of the existing Xcode project, without moving any files — iOS build is unaffected.
 - Every iOS-only framework (CloudKit, StoreKit, GoogleMobileAds, PhotosUI, WidgetKit, Swift Charts, UMP, ATT) isolated behind `#if !SKIP … #else … #endif` in `ReadTime/ReadTimeApp.swift`.
 - CloudKit kept as the backend on both platforms: Android talks to the same public database over CloudKit **Web Services** (`CloudKitWebService`), so `RoadmapStore` (voting/suggestions) and `ReferralReport` (onboarding source) are implemented for real, not stubbed.
-- Premium purchases wired to `skip-revenue`/RevenueCat (one API covering StoreKit + Play Billing) instead of a Play Billing stub.
 - Stats charts have a working plain-bar Compose-friendly fallback (Swift Charts doesn't transpile).
 - AdMob + UMP Gradle dependencies declared in `skip.yml`.
+- CI (`.github/workflows/android-debug-apk.yml`) builds a debug APK and publishes it to the `prerelease-android` branch.
 
 **Not done / stubbed (see the status table below for detail):**
+- Premium purchases (`PurchaseManager`) — stub message, no Play Billing wired up yet. `skip-revenue`/RevenueCat was tried first but dropped: its package manifest requires Swift tools-version 6.1, which CI's toolchain couldn't resolve ("`'skip-revenue' contains incompatible tools version (6.1.0)`").
 - AdMob ads (`AdManager`) — SDK calls not wired up, no ads render on Android yet.
 - Cover photo picker — stub message, needs Android's Photo Picker.
 - Personal iCloud backup — falls back to local-only storage on Android (needs a Sign-in-with-Apple flow for CloudKit's private database).
 - Home/Lock Screen widgets — out of scope, no Android equivalent.
-- **Nothing here has been built or run.** This was written without a Swift toolchain, Skip CLI, or Android SDK available — the next step is opening it on a machine that has all three and fixing whatever doesn't compile. `CloudKitWebService`'s request signing in particular has two untested implementations (CryptoKit for iOS, `java.security` for Android) that need verifying.
+- **Nothing here has been built end-to-end yet.** Written without a Swift toolchain, Skip CLI, or Android SDK available locally — real CI runs are the only feedback loop so far, and each fix has come from reading the actual CI failure (the legacy Android SDK `tools` package, then the `skip-revenue` tools-version mismatch). `CloudKitWebService`'s request signing in particular has two untested implementations (CryptoKit for iOS, `java.security` for Android) that still need verifying once the build gets that far.
 
-**CI:** `.github/workflows/android-debug-apk.yml` builds a debug APK on every push to `dhphuc`/`main` (and on manual dispatch) and publishes it two ways: as a normal workflow artifact, and committed to the `prerelease-android` branch at `prerelease/ReadTime-debug.apk` (with a short README noting the source commit) so there's always one stable link to the latest build. This workflow is also unverified — the Skip CLI invocation and the Gradle `assembleDebug` step are best-effort against Skip's documented CLI, not a tested pipeline; expect to fix it up on the first real run.
+**CI:** `.github/workflows/android-debug-apk.yml` builds a debug APK on every push to `dhphuc`/`main` (and on manual dispatch) and publishes it two ways: as a normal workflow artifact, and committed to the `prerelease-android` branch at `prerelease/ReadTime-debug.apk` (with a short README noting the source commit) so there's always one stable link to the latest build.
 
 ## Included flows
 
@@ -96,9 +97,17 @@ There's no CloudKit SDK for Android, but Apple's **CloudKit Web Services** is a 
 
 ### Premium purchases on Android
 
-Rather than hand-rolling the Play Billing Library's Kotlin API, `PurchaseManager`'s Android branch uses [`skip-revenue`](https://skip.dev/docs/modules/skip-revenue/) (added as a dependency in `Package.swift`), which wraps [RevenueCat](https://www.revenuecat.com) and gives one Swift API for both StoreKit (iOS, unchanged) and Play Billing (Android). Needs, none of which exist yet:
-- A RevenueCat account/project, with a "premium" entitlement mapped to a Play Store subscription or non-consumable matching `PurchaseManager.premiumProductID`.
-- The real RevenueCat Android API key in place of `"goog_REPLACE_WITH_REVENUECAT_ANDROID_KEY"` in `ReadTimeApp.init()`.
+`PurchaseManager`'s Android branch is currently a stub (`buyPremium()` just shows "Premium isn't available on Android yet."). [`skip-revenue`](https://skip.dev/docs/modules/skip-revenue/) (wraps RevenueCat, one Swift API for StoreKit + Play Billing) was tried first, but its package manifest requires Swift tools-version 6.1, and CI's dependency resolution failed with:
+
+```
+'skip-revenue' contains incompatible tools version (6.1.0)
+```
+
+Two ways forward once someone's actually iterating on this in a real environment:
+1. Re-add `.package(url: "https://source.skip.dev/skip-revenue.git", ...)` to `Package.swift` once the toolchain in use supports Swift 6.1 (may just need a newer Xcode/CI image).
+2. Or implement Play Billing directly against `PurchaseManager`'s Android branch using Skip's documented fully-qualified Kotlin/Java call pattern (`#if SKIP`) — more code, but no external dependency version constraint.
+
+Either way it needs a matching product configured (RevenueCat dashboard + Play Store product, or a raw Play Console product) for `PurchaseManager.premiumProductID`.
 
 ### What's stubbed vs. implemented for Android
 
@@ -107,7 +116,7 @@ Rather than hand-rolling the Play Billing Library's Kotlin API, `PurchaseManager
 | CloudKit (Roadmap, referral answer) | Implemented over CloudKit Web Services — needs the server-to-server key added and a real build to verify |
 | Reading data, goals, journal, stats | Unchanged — pure Swift/SwiftUI, transpiles as-is |
 | Personal iCloud backup | Stubbed to local-only storage; needs Sign in with Apple + CloudKit private DB |
-| Premium purchases (`PurchaseManager`) | Implemented via `skip-revenue`/RevenueCat — needs a RevenueCat project + API key and a real build to verify |
+| Premium purchases (`PurchaseManager`) | Stubbed; `skip-revenue` dropped due to a Swift tools-version mismatch (see above) — needs Play Billing wired in directly, or `skip-revenue` re-added once that's resolved |
 | Ads (`AdManager`, `AdBanner`) | Stubbed (no ads render); AdMob + UMP Android Gradle dependencies are declared in `ReadTime/Skip/skip.yml`, but the SDK calls themselves (callback-heavy) aren't wired up yet |
 | Cover photo picker (`AddBookView`) | Stubbed; needs Android's Photo Picker via `ActivityResultContracts.PickVisualMedia` |
 | Stats trend/genre charts | Working plain-bar fallback (Swift Charts doesn't transpile); swap for a Compose chart later if needed |
@@ -115,7 +124,7 @@ Rather than hand-rolling the Play Billing Library's Kotlin API, `PurchaseManager
 
 ### Building for Android
 
-Not runnable in this environment (no Swift toolchain, Android SDK, or Skip CLI installed here). To build once you have those:
+Not runnable in this environment (no Swift toolchain, Android SDK, or Skip CLI installed here) — CI (`.github/workflows/android-debug-apk.yml`) is the only place this has actually been exercised so far. To build locally once you have the prerequisites:
 
 ```sh
 brew install skiptools/skip/skip   # Skip CLI (macOS + Xcode required)
@@ -126,7 +135,7 @@ Also needed, none of which exist in this repo yet:
 - The Skip CLI's own prerequisites (Xcode, Android Studio/SDK, a configured Android emulator or device).
 - `CloudKitServerKeyID` / `CloudKitServerPrivateKey` (see above).
 - Real AdMob Android ad unit IDs (reuse the ones in `ReadTime/Config/ReadTime.xcconfig` once ads are wired up) and an `admobAppId` value.
-- A RevenueCat project/API key (see above).
+- A resolution for premium purchases (see above).
 
 ## Premium
 

@@ -21,7 +21,6 @@ import WidgetKit
 import CloudKit
 #else
 import Foundation
-import SkipRevenue
 #endif
 
 #if SKIP
@@ -152,13 +151,6 @@ struct ReadTimeApp: App {
     init() {
         // Shown on ReadTime's page in the Settings app (see Settings.bundle).
         UserDefaults.standard.set(AppInfo.version, forKey: "settings_app_version")
-        #if SKIP
-        // iOS keeps native StoreKit (below, in PurchaseManager); Android has no
-        // StoreKit, so its branch goes through RevenueCat instead. TODO(android):
-        // replace with the real RevenueCat Android API key, and configure the
-        // matching product/entitlement ("premium") in the RevenueCat dashboard.
-        RevenueCatFuse.shared.configure(apiKey: "goog_REPLACE_WITH_REVENUECAT_ANDROID_KEY")
-        #endif
     }
 
     var body: some Scene {
@@ -3850,17 +3842,19 @@ final class PurchaseManager: ObservableObject {
     }
 }
 #else
-/// Uses RevenueCat (via Skip's `skip-revenue` package, configured in `ReadTimeApp.init()`)
-/// instead of hand-rolling Play Billing's Kotlin API. Needs a "premium" entitlement
-/// and a matching Play Store product set up in the RevenueCat dashboard — see
-/// README.md "Android (Skip)". Unverified: no Swift/Skip toolchain available here
-/// to build and run this.
+/// TODO(android): wire this to Google Play Billing so it fulfills the same
+/// product ID / entitlement contract as the iOS StoreKit version above.
+/// `skip-revenue` (RevenueCat) would avoid hand-rolling the Play Billing
+/// Kotlin API, but its manifest currently requires Swift tools-version 6.1,
+/// which the toolchain resolving this package couldn't satisfy ("'skip-revenue'
+/// contains incompatible tools version (6.1.0)") — re-add it once that's no
+/// longer a blocker, or fall back to Play Billing directly via Skip's Kotlin
+/// interop otherwise.
 @MainActor
 final class PurchaseManager: ObservableObject {
     static let premiumProductID = "com.fatties.readtime.premium"
-    private static let entitlementID = "premium"
 
-    @Published private(set) var premiumProduct: Package? = nil
+    @Published private(set) var premiumProduct: String? = nil
     @Published private(set) var isPremium = false {
         didSet { AdManager.shared.isAdFree = isPremium }
     }
@@ -3868,62 +3862,25 @@ final class PurchaseManager: ObservableObject {
     @Published var message: String?
 
     func load() async {
-        do {
-            let offerings = try await RevenueCatFuse.shared.loadOfferings()
-            premiumProduct = offerings.current?.availablePackages.first
-        } catch {
-            premiumProduct = nil
-        }
-        await refreshEntitlements()
+        // TODO(android): query Play Billing for `premiumProductID` and current entitlements.
     }
 
-    /// RevenueCat surfaces trial eligibility per-package; this app doesn't
-    /// currently read it (the iOS StoreKit branch's freeTrialDescription()
-    /// summarizes StoreKit's own introductory offer, which RevenueCat doesn't
-    /// mirror 1:1). TODO(android): read `premiumProduct.storeProduct` trial info
-    /// if a free-trial badge is wanted on Android's paywall too.
     var freeTrialDescription: String? { nil }
 
     func isEligibleForFreeTrial() async -> Bool { false }
 
-    var priceDescription: String? {
-        premiumProduct?.storeProduct.localizedPriceString
-    }
+    var priceDescription: String? { nil }
 
     func refreshEntitlements() async {
-        guard let customerInfo = try? await RevenueCatFuse.shared.getCustomerInfo() else { return }
-        isPremium = customerInfo.isEntitlementActive(Self.entitlementID)
+        // TODO(android): re-query Play Billing's purchase history.
     }
 
     func buyPremium() async {
-        if premiumProduct == nil { await load() }
-        guard let premiumProduct else {
-            message = String(localized: "Premium isn't available right now. Please try again later.")
-            return
-        }
-        isWorking = true
-        defer { isWorking = false }
-        do {
-            let customerInfo = try await RevenueCatFuse.shared.purchase(
-                package: premiumProduct,
-                activity: UIApplication.shared.androidActivity
-            )
-            isPremium = customerInfo.isEntitlementActive(Self.entitlementID)
-            if isPremium {
-                message = String(localized: "Welcome to ReadTime Premium!")
-            }
-        } catch {
-            message = error.localizedDescription
-        }
+        message = String(localized: "Premium isn't available on Android yet.")
     }
 
     func restorePurchases() async {
-        isWorking = true
-        defer { isWorking = false }
-        await refreshEntitlements()
-        message = isPremium
-            ? String(localized: "Your purchases have been restored.")
-            : String(localized: "No previous purchases were found.")
+        message = String(localized: "No previous purchases were found.")
     }
 }
 #endif
