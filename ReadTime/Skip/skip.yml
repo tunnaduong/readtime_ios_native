@@ -1,0 +1,28 @@
+# Module-level Skip configuration for the ReadTime target.
+# See README.md "Android (Skip)" for the setup this depends on
+# (Skip CLI + Android SDK, AdMob/CloudKit/Play Billing keys).
+
+# Skip Fuse mode: Swift compiles to a real Android binary via the Swift
+# Android SDK/toolchain, with SwiftUI transpiled to Compose — the mode that
+# lets this app's existing SwiftUI views run mostly unchanged.
+mode: fuse
+
+# Android application ID; matches the iOS bundle ID for consistency.
+android:
+  applicationId: com.fatties.readtime
+  manifestPlaceholders:
+    admobAppId: "ca-app-pub-9033651898132595~5071944339"
+
+# Raw Gradle dependencies the Android side needs that have no Skip module:
+# the AdMob Android SDK and the Google User Messaging Platform (UMP) Android
+# SDK, called directly from ReadTimeApp.swift's `#if SKIP` AdManager branch.
+# (Purchases use the `skip-revenue` package declared in Package.swift instead
+# of a raw Play Billing dependency here — see PurchaseManager's SKIP branch.)
+# Regenerated into build.gradle.kts on every build — edit this file, not that one.
+build:
+  contents:
+    - block: 'dependencies'
+      contents:
+        - 'implementation("com.google.android.gms:play-services-ads:23.5.0")'
+        - 'implementation("com.google.android.ump:user-messaging-platform:3.0.0")'
+

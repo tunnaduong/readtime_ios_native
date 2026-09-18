@@ -5,3 +5,15 @@ ReadTime/Config/Secrets.xcconfig
 xcuserdata/
 DerivedData/
 .DS_Store
+
+# Swift Package Manager / Skip
+.build/
+.swiftpm/
+.index-build/
+
+# Android (Skip-generated Gradle project; regenerate with `skip` rather than committing it)
+Android/.gradle/
+Android/build/
+Android/app/build/
+Android/local.properties
+

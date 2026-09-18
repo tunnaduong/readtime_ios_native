@@ -1,17 +1,143 @@
 import SwiftUI
 import Combine
 import CryptoKit
-import Charts
 import UserNotifications
 import UIKit
+import UniformTypeIdentifiers
+#if !SKIP
+// Frameworks with no Skip/Android equivalent: Skip transpiles this file to
+// Kotlin/Compose, so these are compiled only for the Darwin (iOS) target. Each
+// type that depends on one of these has an `#else` branch below with an
+// Android-side stand-in (CloudKit Web Services over HTTP, Play Billing, AdMob
+// Android SDK, Android Photo Picker) that still needs its real implementation
+// wired up — see README.md "Android TODOs".
+import Charts
 import StoreKit
 import PhotosUI
 import GoogleMobileAds
 import UserMessagingPlatform
 import AppTrackingTransparency
 import WidgetKit
-import UniformTypeIdentifiers
 import CloudKit
+#else
+import Foundation
+import SkipRevenue
+#endif
+
+#if SKIP
+/// Talks to Apple's CloudKit **Web Services** REST API — the only way to reach
+/// the existing `iCloud.com.fatties.readtime` public database from Android,
+/// since there is no CloudKit SDK outside Apple platforms. Needs a CloudKit
+/// Console "Server-to-Server Key" (private key + Key ID); see README.md
+/// "CloudKit on Android". Docs: https://developer.apple.com/documentation/cloudkitjs/cloudkit_javascript_reference/web_services_reference
+enum CloudKitWebService {
+    struct Config {
+        let containerID: String
+        let environment: String // "development" or "production"
+        let keyID: String
+        let privateKeyPEM: String
+    }
+
+    enum ServiceError: LocalizedError {
+        case notConfigured
+        case badResponse(Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .notConfigured: "CloudKit isn't configured for Android yet."
+            case .badResponse(let code): "CloudKit request failed (\(code))."
+            }
+        }
+    }
+
+    /// Read from Info.plist keys `CloudKitServerKeyID` / `CloudKitServerPrivateKey`
+    /// (wire these up the same way the AdMob unit IDs are configured), so the raw
+    /// key never sits directly in source.
+    static var config: Config? {
+        guard
+            let keyID = Bundle.main.object(forInfoDictionaryKey: "CloudKitServerKeyID") as? String, !keyID.isEmpty,
+            let pem = Bundle.main.object(forInfoDictionaryKey: "CloudKitServerPrivateKey") as? String, !pem.isEmpty
+        else { return nil }
+        return Config(
+            containerID: RoadmapStore.containerIdentifier,
+            environment: AppInfo.isDebugBuild ? "development" : "production",
+            keyID: keyID,
+            privateKeyPEM: pem
+        )
+    }
+
+    /// Stands in for the signed-in Apple ID CloudKit normally uses, so one
+    /// install can't vote twice — mirrors the `vote-<feature>-<user>` record
+    /// naming the iOS `RoadmapStore` already relies on.
+    static var installID: String {
+        let key = "cloudkit.installID"
+        if let existing = UserDefaults.standard.string(forKey: key) { return existing }
+        let id = UUID().uuidString
+        UserDefaults.standard.set(id, forKey: key)
+        return id
+    }
+
+    static func request(path: String, body: [String: Any]) async throws -> [String: Any] {
+        guard let config else { throw ServiceError.notConfigured }
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+        let subpath = "/database/1/\(config.containerID)/\(config.environment)/public/\(path)"
+        let date = ISO8601DateFormatter().string(from: Date())
+        let bodyHash = Data(SHA256.hash(data: bodyData)).base64EncodedString()
+        let message = "\(date):\(bodyHash):\(subpath)"
+        let signature = try sign(message: message, privateKeyPEM: config.privateKeyPEM)
+
+        var request = URLRequest(url: URL(string: "https://api.apple-cloudkit.com\(subpath)")!)
+        request.httpMethod = "POST"
+        request.httpBody = bodyData
+        request.setValue("text/plain", forHTTPHeaderField: "Content-Type")
+        request.setValue(config.keyID, forHTTPHeaderField: "X-Apple-CloudKit-Request-KeyID")
+        request.setValue(date, forHTTPHeaderField: "X-Apple-CloudKit-Request-ISO8601Date")
+        request.setValue(signature, forHTTPHeaderField: "X-Apple-CloudKit-Request-SignatureV1")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw ServiceError.badResponse((response as? HTTPURLResponse)?.statusCode ?? -1)
+        }
+        return (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+    }
+
+    /// ECDSA P-256/SHA-256 signature over `message`, base64-encoded, per CloudKit
+    /// Web Services' server-to-server auth scheme.
+    /// Unverified — no Swift/Skip toolchain available here to confirm either
+    /// branch actually compiles. Two independent attempts, gated so whichever
+    /// works can be kept: CryptoKit (in case Skip's crypto shim covers P256
+    /// signing) and, if not, a direct `java.security` call using the
+    /// fully-qualified-Kotlin-call pattern Skip Fuse documents.
+    private static func sign(message: String, privateKeyPEM: String) throws -> String {
+        #if !SKIP
+        let key = try P256.Signing.PrivateKey(pemRepresentation: privateKeyPEM)
+        let signature = try key.signature(for: Data(message.utf8))
+        return signature.derRepresentation.base64EncodedString()
+        #else
+        // TODO(android): confirm this transpiles — untested. Strips the PEM's
+        // header/footer/newlines, decodes the base64 body to a PKCS#8 key, and
+        // signs with the JDK's own ECDSA implementation (no extra Gradle
+        // dependency needed; java.security is part of the Android runtime).
+        let base64Body = privateKeyPEM
+            .replacingOccurrences(of: "-----BEGIN PRIVATE KEY-----", with: "")
+            .replacingOccurrences(of: "-----END PRIVATE KEY-----", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        guard let keyBytes = Data(base64Encoded: base64Body) else {
+            throw ServiceError.notConfigured
+        }
+        let keySpec = java.security.spec.PKCS8EncodedKeySpec(keyBytes.kotlin())
+        let keyFactory = java.security.KeyFactory.getInstance("EC")
+        let privateKey = keyFactory.generatePrivate(keySpec)
+        let signer = java.security.Signature.getInstance("SHA256withECDSA")
+        signer.initSign(privateKey)
+        signer.update(Data(message.utf8).kotlin())
+        let signatureBytes = signer.sign()
+        return Data(platformValue: signatureBytes).base64EncodedString()
+        #endif
+    }
+}
+#endif
 
 @main
 struct ReadTimeApp: App {
@@ -26,6 +152,13 @@ struct ReadTimeApp: App {
     init() {
         // Shown on ReadTime's page in the Settings app (see Settings.bundle).
         UserDefaults.standard.set(AppInfo.version, forKey: "settings_app_version")
+        #if SKIP
+        // iOS keeps native StoreKit (below, in PurchaseManager); Android has no
+        // StoreKit, so its branch goes through RevenueCat instead. TODO(android):
+        // replace with the real RevenueCat Android API key, and configure the
+        // matching product/entitlement ("premium") in the RevenueCat dashboard.
+        RevenueCatFuse.shared.configure(apiKey: "goog_REPLACE_WITH_REVENUECAT_ANDROID_KEY")
+        #endif
     }
 
     var body: some Scene {
@@ -180,7 +313,11 @@ final class ReadingStore: ObservableObject {
         // Nothing is written until onboarding finishes, so quitting halfway shows it again next launch.
         guard !needsOnboarding else { return }
         LocalStore.save(snapshot)
+        #if !SKIP
         WidgetCenter.shared.reloadAllTimelines()
+        #endif
+        // No Android home-screen widgets yet — WidgetKit has no Android equivalent
+        // (Glance would be the native route); out of scope for this port, see README.md.
         // Save active session state
         if let bookID = activeSessionBookID, let startedAt = activeSessionStartedAt {
             let session = ActiveSessionState(bookID: bookID, startedAt: startedAt)
@@ -2070,7 +2207,9 @@ struct AddBookView: View {
     @State private var coverName: String?
     @State private var coverURL: String?
     @State private var confirmingDelete = false
+    #if !SKIP
     @State private var photoItem: PhotosPickerItem?
+    #endif
     @State private var isLoadingPhoto = false
     @State private var photoError: String?
 
@@ -2175,9 +2314,20 @@ struct AddBookView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 5))
 
                         VStack(alignment: .leading, spacing: 10) {
+                            #if !SKIP
                             PhotosPicker(selection: $photoItem, matching: .images) {
                                 Label(hasCover ? "Change Cover" : "Upload Cover", systemImage: "photo.on.rectangle")
                             }
+                            #else
+                            // TODO(android): launch Android's Photo Picker via
+                            // ActivityResultContracts.PickVisualMedia (Skip Kotlin interop),
+                            // then call CoverCache.saveUploadedCover(_:) with the bytes.
+                            Button {
+                                photoError = String(localized: "Photo upload isn't set up on Android yet.")
+                            } label: {
+                                Label(hasCover ? "Change Cover" : "Upload Cover", systemImage: "photo.on.rectangle")
+                            }
+                            #endif
                             if hasCover {
                                 Button("Remove Cover", role: .destructive) {
                                     coverName = nil
@@ -2193,10 +2343,12 @@ struct AddBookView: View {
                         }
                         .buttonStyle(.borderless)
                     }
+                    #if !SKIP
                     .onChange(of: photoItem) { item in
                         guard let item else { return }
                         Task { await loadCover(from: item) }
                     }
+                    #endif
                     TextField("Title", text: $title)
                     TextField("Author", text: $author)
                     TextField("Genre", text: $genre)
@@ -2277,6 +2429,7 @@ struct AddBookView: View {
         isSearching = false
     }
 
+    #if !SKIP
     private func loadCover(from item: PhotosPickerItem) async {
         isLoadingPhoto = true
         photoError = nil
@@ -2289,6 +2442,7 @@ struct AddBookView: View {
         }
         isLoadingPhoto = false
     }
+    #endif
 
     private func select(_ result: BookSearchResult) {
         title = result.title
@@ -2545,6 +2699,7 @@ struct StatsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
+                #if !SKIP
                 Chart(favourites.shares) { share in
                     BarMark(
                         x: .value("Share", share.percent),
@@ -2561,6 +2716,26 @@ struct StatsView: View {
                 .chartXScale(domain: 0...115)
                 .chartXAxis(.hidden)
                 .frame(height: CGFloat(favourites.shares.count) * 42 + 10)
+                #else
+                // TODO(android): Swift Charts doesn't transpile through Skip; this plain
+                // bar list stands in for it. Swap for a Compose chart via Kotlin interop if
+                // richer visuals are needed later.
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(favourites.shares) { share in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(share.genre) — \(share.percent)%")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                            GeometryReader { proxy in
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.readTimePurple.opacity(0.78))
+                                    .frame(width: proxy.size.width * CGFloat(share.percent) / 100)
+                            }
+                            .frame(height: 10)
+                        }
+                    }
+                }
+                #endif
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2882,6 +3057,7 @@ struct TrendCard: View {
             .buttonStyle(.plain)
 
             if expanded {
+                #if !SKIP
                 Chart(series, id: \.date) { point in
                     BarMark(
                         x: .value("Date", point.date, unit: unit),
@@ -2892,6 +3068,21 @@ struct TrendCard: View {
                 }
                 .frame(height: 150)
                 .transition(.opacity)
+                #else
+                // TODO(android): Swift Charts doesn't transpile through Skip; this plain
+                // bar row stands in for it. Swap for a Compose chart via Kotlin interop if
+                // richer visuals are needed later.
+                let maxValue = max(series.map(\.value).max() ?? 0, 1)
+                HStack(alignment: .bottom, spacing: 3) {
+                    ForEach(series, id: \.date) { point in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(color.gradient)
+                            .frame(height: max(2, 130 * CGFloat(point.value / maxValue)))
+                    }
+                }
+                .frame(height: 150, alignment: .bottom)
+                .transition(.opacity)
+                #endif
             }
         }
         .padding(16)
@@ -3392,6 +3583,7 @@ struct GoalRingCard: View {
 
 /// Stores a single backup of the reading data in iCloud key-value storage, which
 /// syncs across the user's devices signed in to the same Apple ID (1 MB limit).
+#if !SKIP
 enum CloudBackup {
     static let syncEnabledKey = "iCloudSyncEnabled"
     private static let backupKey = "readtime.backup"
@@ -3438,6 +3630,56 @@ enum CloudBackup {
         return try JSONDecoder().decode(ReadingSnapshot.self, from: data)
     }
 }
+#else
+/// Android has no iCloud KVS equivalent. This stand-in keeps the same API but only
+/// backs up locally for now.
+/// TODO(android): CloudKit Web Services can reach the CloudKit **private** database
+/// (per-user, needed here — the public database used by `RoadmapStore`/`ReferralReport`
+/// below isn't right for personal backups), but only via a Web Auth Token from a
+/// "Sign in with Apple" flow, not the server-to-server key. That's a bigger feature
+/// (OAuth-style sign-in screen + token exchange) — worth doing once the read-only
+/// public-database calls below are confirmed working.
+enum CloudBackup {
+    static let syncEnabledKey = "iCloudSyncEnabled"
+    private static let backupKey = "readtime.backup"
+
+    enum BackupError: LocalizedError {
+        case iCloudUnavailable
+        case noBackup
+
+        var errorDescription: String? {
+            switch self {
+            case .iCloudUnavailable: String(localized: "Cloud backup isn't set up yet on Android.")
+            case .noBackup: String(localized: "No backup was found.")
+            }
+        }
+    }
+
+    static var isAvailable: Bool { true }
+
+    static var lastBackupDate: Date? {
+        try? latestSnapshot().savedAt
+    }
+
+    @MainActor
+    static func backUp(_ store: ReadingStore) throws {
+        let data = try JSONEncoder().encode(store.snapshot)
+        UserDefaults.standard.set(data, forKey: backupKey)
+    }
+
+    @MainActor
+    static func restore(into store: ReadingStore) throws {
+        store.restore(from: try latestSnapshot())
+    }
+
+    private static func latestSnapshot() throws -> ReadingSnapshot {
+        guard let data = UserDefaults.standard.data(forKey: backupKey) else {
+            throw BackupError.noBackup
+        }
+        return try JSONDecoder().decode(ReadingSnapshot.self, from: data)
+    }
+}
+#endif
 
 enum AppearanceMode: String, CaseIterable, Identifiable {
     case system, light, dark
@@ -3477,6 +3719,7 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
     }
 }
 
+#if !SKIP
 @MainActor
 final class PurchaseManager: ObservableObject {
     // TODO: Replace with the product ID configured in App Store Connect.
@@ -3606,8 +3849,91 @@ final class PurchaseManager: ObservableObject {
         }
     }
 }
+#else
+/// Uses RevenueCat (via Skip's `skip-revenue` package, configured in `ReadTimeApp.init()`)
+/// instead of hand-rolling Play Billing's Kotlin API. Needs a "premium" entitlement
+/// and a matching Play Store product set up in the RevenueCat dashboard — see
+/// README.md "Android (Skip)". Unverified: no Swift/Skip toolchain available here
+/// to build and run this.
+@MainActor
+final class PurchaseManager: ObservableObject {
+    static let premiumProductID = "com.fatties.readtime.premium"
+    private static let entitlementID = "premium"
+
+    @Published private(set) var premiumProduct: Package? = nil
+    @Published private(set) var isPremium = false {
+        didSet { AdManager.shared.isAdFree = isPremium }
+    }
+    @Published private(set) var isWorking = false
+    @Published var message: String?
+
+    func load() async {
+        do {
+            let offerings = try await RevenueCatFuse.shared.loadOfferings()
+            premiumProduct = offerings.current?.availablePackages.first
+        } catch {
+            premiumProduct = nil
+        }
+        await refreshEntitlements()
+    }
+
+    /// RevenueCat surfaces trial eligibility per-package; this app doesn't
+    /// currently read it (the iOS StoreKit branch's freeTrialDescription()
+    /// summarizes StoreKit's own introductory offer, which RevenueCat doesn't
+    /// mirror 1:1). TODO(android): read `premiumProduct.storeProduct` trial info
+    /// if a free-trial badge is wanted on Android's paywall too.
+    var freeTrialDescription: String? { nil }
+
+    func isEligibleForFreeTrial() async -> Bool { false }
+
+    var priceDescription: String? {
+        premiumProduct?.storeProduct.localizedPriceString
+    }
+
+    func refreshEntitlements() async {
+        guard let customerInfo = try? await RevenueCatFuse.shared.getCustomerInfo() else { return }
+        isPremium = customerInfo.isEntitlementActive(Self.entitlementID)
+    }
+
+    func buyPremium() async {
+        if premiumProduct == nil { await load() }
+        guard let premiumProduct else {
+            message = String(localized: "Premium isn't available right now. Please try again later.")
+            return
+        }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let customerInfo = try await RevenueCatFuse.shared.purchase(
+                package: premiumProduct,
+                activity: UIApplication.shared.androidActivity
+            )
+            isPremium = customerInfo.isEntitlementActive(Self.entitlementID)
+            if isPremium {
+                message = String(localized: "Welcome to ReadTime Premium!")
+            }
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+
+    func restorePurchases() async {
+        isWorking = true
+        defer { isWorking = false }
+        await refreshEntitlements()
+        message = isPremium
+            ? String(localized: "Your purchases have been restored.")
+            : String(localized: "No previous purchases were found.")
+    }
+}
+#endif
 
 enum AppInfo {
+#if DEBUG
+    static let isDebugBuild = true
+#else
+    static let isDebugBuild = false
+#endif
     // TODO: Replace with the real support address.
     static let supportEmail = "support@tunnaduong.com"
     // TODO: Set the numeric App Store ID once the app is live, for share links and "Write a Review".
@@ -3947,6 +4273,7 @@ struct SettingsView: View {
     }
 }
 
+#if !SKIP
 /// Sends the onboarding answer to the CloudKit public database, once per device.
 /// Only the chosen option and the app version are stored — nothing about the reader.
 enum ReferralReport {
@@ -3965,6 +4292,34 @@ enum ReferralReport {
         }
     }
 }
+#else
+/// Writes to the same CloudKit public database as iOS, over CloudKit Web
+/// Services (see `CloudKitWebService` above).
+enum ReferralReport {
+    private static let sentKey = "onboarding_referral_sent"
+
+    static func send(source: String) async {
+        guard !UserDefaults.standard.bool(forKey: sentKey) else { return }
+        do {
+            _ = try await CloudKitWebService.request(path: "records/modify", body: [
+                "operations": [[
+                    "operationType": "create",
+                    "record": [
+                        "recordType": "ReferralAnswer",
+                        "fields": [
+                            "source": ["value": source],
+                            "appVersion": ["value": AppInfo.version],
+                        ],
+                    ],
+                ]]
+            ])
+            UserDefaults.standard.set(true, forKey: sentKey)
+        } catch {
+            // Not worth interrupting onboarding; the answer stays on the device.
+        }
+    }
+}
+#endif
 
 // MARK: - Premium paywall
 
@@ -4138,6 +4493,7 @@ struct FeatureRequest: Identifiable, Hashable {
 }
 
 @MainActor
+#if !SKIP
 final class RoadmapStore: ObservableObject {
     static let containerIdentifier = "iCloud.com.fatties.readtime"
 
@@ -4258,6 +4614,142 @@ final class RoadmapStore: ObservableObject {
         return records
     }
 }
+#else
+/// Reads/writes the same CloudKit public database as iOS, over CloudKit Web
+/// Services (see `CloudKitWebService` above). `CloudKitWebService.installID`
+/// stands in for the signed-in Apple ID iOS uses to key each `Vote` record.
+final class RoadmapStore: ObservableObject {
+    static let containerIdentifier = "iCloud.com.fatties.readtime"
+
+    @Published private(set) var requests: [FeatureRequest] = []
+    @Published private(set) var isLoading = false
+    @Published private(set) var loadFailed = false
+    /// Always true on Android: there's no per-device Apple ID sign-in gate here,
+    /// only the app-wide server-to-server key.
+    @Published private(set) var isSignedIn = true
+    @Published var message: String?
+
+    func load() async {
+        isLoading = true
+        loadFailed = false
+        defer { isLoading = false }
+        do {
+            let featureResult = try await CloudKitWebService.request(path: "records/query", body: [
+                "query": ["recordType": "FeatureRequest"]
+            ])
+            let featureRecords = (featureResult["records"] as? [[String: Any]]) ?? []
+            let listed = featureRecords.filter { record in
+                let fields = record["fields"] as? [String: Any]
+                let listedValue = (fields?["listed"] as? [String: Any])?["value"] as? Int ?? 1
+                return listedValue != 0
+            }
+            let names = listed.compactMap { $0["recordName"] as? String }
+
+            var votesByFeature: [String: Int] = [:]
+            var myVotes: Set<String> = []
+            if !names.isEmpty {
+                let voteResult = try await CloudKitWebService.request(path: "records/query", body: [
+                    "query": [
+                        "recordType": "Vote",
+                        "filterBy": [[
+                            "fieldName": "featureName",
+                            "comparator": "IN",
+                            "fieldValue": ["value": names, "type": "STRING_LIST"],
+                        ]],
+                    ]
+                ])
+                let voteRecords = (voteResult["records"] as? [[String: Any]]) ?? []
+                for vote in voteRecords {
+                    guard let fields = vote["fields"] as? [String: Any],
+                          let name = (fields["featureName"] as? [String: Any])?["value"] as? String
+                    else { continue }
+                    votesByFeature[name, default: 0] += 1
+                    if let recordName = vote["recordName"] as? String,
+                       recordName == "vote-\(name)-\(CloudKitWebService.installID)" {
+                        myVotes.insert(name)
+                    }
+                }
+            }
+
+            requests = listed.compactMap { record -> FeatureRequest? in
+                guard let name = record["recordName"] as? String,
+                      let fields = record["fields"] as? [String: Any] else { return nil }
+                return FeatureRequest(
+                    id: name,
+                    title: (fields["title"] as? [String: Any])?["value"] as? String ?? "",
+                    details: (fields["details"] as? [String: Any])?["value"] as? String ?? "",
+                    status: FeatureRequest.Status(rawValue: (fields["status"] as? [String: Any])?["value"] as? String ?? "") ?? .inReview,
+                    votes: votesByFeature[name] ?? 0,
+                    hasVoted: myVotes.contains(name)
+                )
+            }
+            .sorted { $0.votes == $1.votes ? $0.title < $1.title : $0.votes > $1.votes }
+        } catch {
+            loadFailed = true
+        }
+    }
+
+    func toggleVote(for request: FeatureRequest) async {
+        guard let index = requests.firstIndex(where: { $0.id == request.id }) else { return }
+        let recordName = "vote-\(request.id)-\(CloudKitWebService.installID)"
+        let wasVoted = requests[index].hasVoted
+        requests[index].hasVoted.toggle()
+        requests[index].votes += wasVoted ? -1 : 1
+
+        do {
+            if wasVoted {
+                _ = try await CloudKitWebService.request(path: "records/modify", body: [
+                    "operations": [[
+                        "operationType": "forceDelete",
+                        "record": ["recordName": recordName],
+                    ]]
+                ])
+            } else {
+                _ = try await CloudKitWebService.request(path: "records/modify", body: [
+                    "operations": [[
+                        "operationType": "create",
+                        "record": [
+                            "recordName": recordName,
+                            "recordType": "Vote",
+                            "fields": ["featureName": ["value": request.id]],
+                        ],
+                    ]]
+                ])
+            }
+        } catch {
+            if let index = requests.firstIndex(where: { $0.id == request.id }) {
+                requests[index].hasVoted = wasVoted
+                requests[index].votes += wasVoted ? 1 : -1
+            }
+            message = error.localizedDescription
+        }
+    }
+
+    func suggest(title: String, details: String) async -> Bool {
+        do {
+            _ = try await CloudKitWebService.request(path: "records/modify", body: [
+                "operations": [[
+                    "operationType": "create",
+                    "record": [
+                        "recordType": "FeatureRequest",
+                        "fields": [
+                            "title": ["value": title],
+                            "details": ["value": details],
+                            "status": ["value": FeatureRequest.Status.inReview.rawValue],
+                            "listed": ["value": 0],
+                        ],
+                    ],
+                ]]
+            ])
+            message = String(localized: "Thanks! Your suggestion will appear on the roadmap once it's been reviewed.")
+            return true
+        } catch {
+            message = error.localizedDescription
+            return false
+        }
+    }
+}
+#endif
 
 struct RoadmapView: View {
     @StateObject private var roadmap = RoadmapStore()
@@ -5459,6 +5951,7 @@ private struct OnboardingFirstBookStep: View {
 
 // MARK: - Ads
 
+#if !SKIP
 /// Google AdMob interstitials, shown when a reading session ends.
 /// IDs come from Info.plist (set in ReadTime/Config/ReadTime.xcconfig); they default to Google's test IDs.
 @MainActor
@@ -5659,7 +6152,33 @@ final class AdManager: NSObject, ObservableObject, FullScreenContentDelegate {
         return top
     }
 }
+#else
+/// TODO(android): wire this to the AdMob Android SDK + Google UMP Android SDK
+/// (both are separate native libraries from the iOS ones, but a near-identical
+/// API) via Skip's Kotlin interop. There's no Android equivalent of
+/// AppTrackingTransparency — consent is handled by UMP alone.
+@MainActor
+final class AdManager: NSObject, ObservableObject {
+    static let shared = AdManager()
 
+    @Published var isAdFree = false
+    @Published private(set) var sdkStarted = false
+
+    var bannerUnitID: String? { nil }
+
+    func start() {
+        // TODO(android): request UMP consent, then start the AdMob Android SDK.
+    }
+
+    func showAppOpenAdIfAvailable() {}
+
+    func showInterstitial(then completion: @escaping () -> Void) {
+        completion()
+    }
+}
+#endif
+
+#if !SKIP
 /// An adaptive AdMob banner that takes no space until an ad has loaded, and none at all for Premium users.
 struct AdBanner: View {
     @ObservedObject private var ads = AdManager.shared
@@ -5732,6 +6251,16 @@ private struct BannerAdView: UIViewRepresentable {
         }
     }
 }
+#else
+/// TODO(android): render a Compose `AdView` from the AdMob Android SDK here via
+/// Skip's Kotlin interop, matching the adaptive-banner behavior above. Until then
+/// `AdManager.bannerUnitID` returns nil, so this renders nothing.
+struct AdBanner: View {
+    var body: some View {
+        EmptyView()
+    }
+}
+#endif
 
 // MARK: - Keyboard
 
