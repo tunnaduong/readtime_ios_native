@@ -140,13 +140,13 @@ enum CloudKitWebService {
 
 @main
 struct ReadTimeApp: App {
-    @StateObject private var store = ReadingStore()
-    @StateObject private var purchases = PurchaseManager()
+    @StateObject var store = ReadingStore()
+    @StateObject var purchases = PurchaseManager()
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppearanceMode.storageKey) private var appearance = AppearanceMode.system
     @AppStorage(CloudBackup.syncEnabledKey) private var iCloudSyncEnabled = false
     /// Set when the app goes to the background; the next `.active` counts as "returning to the app".
-    @State private var wasInBackground = false
+    @State var wasInBackground = false
 
     init() {
         // Shown on ReadTime's page in the Settings app (see Settings.bundle).
@@ -660,11 +660,11 @@ final class ReadingStore: ObservableObject {
 struct ReadTimeTabView: View {
     @EnvironmentObject private var store: ReadingStore
     @EnvironmentObject private var purchases: PurchaseManager
-    @State private var showingPaywall = false
-    @State private var showingBookPicker = false
-    @State private var showingSession = false
-    @State private var selectedTab = 0
-    @State private var showingJournal = false
+    @State var showingPaywall = false
+    @State var showingBookPicker = false
+    @State var showingSession = false
+    @State var selectedTab = 0
+    @State var showingJournal = false
 
     private var onboardingBinding: Binding<Bool> {
         Binding(get: { store.needsOnboarding }, set: { _ in })
@@ -752,7 +752,7 @@ struct HomeView: View {
     @Binding var showingBookPicker: Bool
     @Binding var showingSession: Bool
     @Binding var showingJournal: Bool
-    @State private var showingSettings = false
+    @State var showingSettings = false
 
     var body: some View {
         ScrollView {
@@ -1068,7 +1068,7 @@ struct JournalPreview: View {
 
 struct JournalView: View {
     @EnvironmentObject private var store: ReadingStore
-    @State private var editingEntry: JournalEntry?
+    @State var editingEntry: JournalEntry?
 
     var body: some View {
         Group {
@@ -1175,8 +1175,8 @@ struct JournalEntryRow: View {
 struct JournalEntryEditor: View {
     @EnvironmentObject private var store: ReadingStore
     @Environment(\.dismiss) private var dismiss
-    @State private var entry: JournalEntry
-    @State private var confirmingDelete = false
+    @State var entry: JournalEntry
+    @State var confirmingDelete = false
     let isNew: Bool
 
     init(entry: JournalEntry, isNew: Bool) {
@@ -1261,7 +1261,7 @@ struct JournalEntryEditor: View {
 
 struct GoalsView: View {
     @EnvironmentObject private var store: ReadingStore
-    @State private var creating: GoalKind?
+    @State var creating: GoalKind?
 
     var body: some View {
         ScrollView {
@@ -1584,8 +1584,8 @@ struct CreateGoalFlow: View {
     let kind: GoalKind
     @EnvironmentObject private var store: ReadingStore
     @Environment(\.dismiss) private var dismiss
-    @State private var draft: GoalDraft
-    @State private var stepIndex = 0
+    @State var draft: GoalDraft
+    @State var stepIndex = 0
 
     init(kind: GoalKind) {
         self.kind = kind
@@ -1765,8 +1765,8 @@ struct FlowLayout: Layout {
 
 struct ReadPerDaySection: View {
     @Binding var minutes: Int
-    @State private var askingCustom = false
-    @State private var customText = ""
+    @State var askingCustom = false
+    @State var customText = ""
 
     private let presets = [15, 30, 60, 120]
 
@@ -1830,9 +1830,9 @@ struct WeekdaysSection: View {
 struct RoutineSection: View {
     @EnvironmentObject private var store: ReadingStore
     @Binding var draft: GoalDraft
-    @State private var askingCustom = false
-    @State private var customText = ""
-    @State private var choosingStart = false
+    @State var askingCustom = false
+    @State var customText = ""
+    @State var choosingStart = false
 
     private let presets = [1, 2, 4]
 
@@ -1904,7 +1904,7 @@ struct RoutineSection: View {
 struct ChooseStartDaySheet: View {
     @Binding var date: Date
     @Environment(\.dismiss) private var dismiss
-    @State private var selection: Date
+    @State var selection: Date
 
     init(date: Binding<Date>) {
         _date = date
@@ -2051,10 +2051,10 @@ private struct PreviewFact: View {
 
 struct LibraryView: View {
     @EnvironmentObject private var store: ReadingStore
-    @State private var selection: BookStatus? = nil
-    @State private var showingAddBook = false
-    @State private var editingBook: Book?
-    @State private var deletingBook: Book?
+    @State var selection: BookStatus? = nil
+    @State var showingAddBook = false
+    @State var editingBook: Book?
+    @State var deletingBook: Book?
 
     private var books: [Book] {
         guard let selection else { return store.books }
@@ -2189,27 +2189,27 @@ struct AddBookView: View {
     @Environment(\.dismiss) private var dismiss
     /// The book being edited, or nil when adding a new one.
     private let editing: Book?
-    @State private var title: String
-    @State private var author: String
-    @State private var genre: String
-    @State private var pageCount: Int
-    @State private var currentPage: Int
-    @State private var status: BookStatus
-    @State private var rating: Int
-    @State private var coverName: String?
-    @State private var coverURL: String?
-    @State private var confirmingDelete = false
+    @State var title: String
+    @State var author: String
+    @State var genre: String
+    @State var pageCount: Int
+    @State var currentPage: Int
+    @State var status: BookStatus
+    @State var rating: Int
+    @State var coverName: String?
+    @State var coverURL: String?
+    @State var confirmingDelete = false
     #if !SKIP
-    @State private var photoItem: PhotosPickerItem?
+    @State var photoItem: PhotosPickerItem?
     #endif
-    @State private var isLoadingPhoto = false
-    @State private var photoError: String?
+    @State var isLoadingPhoto = false
+    @State var photoError: String?
 
-    @State private var query = ""
-    @State private var results: [BookSearchResult] = []
-    @State private var isSearching = false
-    @State private var searchMessage: String?
-    @FocusState private var searchFocused: Bool
+    @State var query = ""
+    @State var results: [BookSearchResult] = []
+    @State var isSearching = false
+    @State var searchMessage: String?
+    @FocusState var searchFocused: Bool
 
     init(editing: Book? = nil) {
         self.editing = editing
@@ -2764,7 +2764,7 @@ struct StarRatingPicker: View {
 /// A month grid where each day shows the cover of the book read most that day.
 struct ReadingCalendarCard: View {
     @EnvironmentObject private var store: ReadingStore
-    @State private var monthOffset = 0
+    @State var monthOffset = 0
 
     private var calendar: Calendar {
         var calendar = Calendar.current
@@ -2915,8 +2915,8 @@ enum TrendPeriod: String, CaseIterable, Identifiable {
 /// Pages, time and finished books for a chosen period, compared with the period before it.
 struct TrendsSection: View {
     @EnvironmentObject private var store: ReadingStore
-    @State private var period = TrendPeriod.week
-    @State private var offset = 0
+    @State var period = TrendPeriod.week
+    @State var offset = 0
 
     var body: some View {
         let current = period.interval(offset: offset)
@@ -3020,7 +3020,7 @@ struct TrendCard: View {
     let format: (Int) -> Text
     let series: [(date: Date, value: Int)]
     let unit: Calendar.Component
-    @State private var expanded = false
+    @State var expanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -3218,8 +3218,8 @@ struct ReadingSessionView: View {
     @EnvironmentObject private var store: ReadingStore
     @Environment(\.dismiss) private var dismiss
     let bookID: UUID
-    @State private var startedAt = Date()
-    @State private var showingFinish = false
+    @State var startedAt = Date()
+    @State var showingFinish = false
 
     private var book: Book? { store.book(with: bookID) }
 
@@ -3328,9 +3328,9 @@ struct FinishSessionView: View {
     let bookID: UUID
     let seconds: TimeInterval
     let onFinished: () -> Void
-    @State private var currentPage = 1
-    @State private var journal = ""
-    @State private var showingSummary = false
+    @State var currentPage = 1
+    @State var journal = ""
+    @State var showingSummary = false
 
     private var book: Book? { store.book(with: bookID) }
 
@@ -3932,11 +3932,11 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @AppStorage(AppearanceMode.storageKey) private var appearance = AppearanceMode.system
     @AppStorage(CloudBackup.syncEnabledKey) private var iCloudSyncEnabled = false
-    @State private var lastBackup = CloudBackup.lastBackupDate
-    @State private var confirmingRestore = false
-    @State private var backupMessage: String?
-    @State private var confirmingClearDemo = false
-    @State private var showingPaywall = false
+    @State var lastBackup = CloudBackup.lastBackupDate
+    @State var confirmingRestore = false
+    @State var backupMessage: String?
+    @State var confirmingClearDemo = false
+    @State var showingPaywall = false
 
     /// The language ReadTime is currently shown in, written in that language.
     private var currentLanguage: String {
@@ -4283,7 +4283,7 @@ enum ReferralReport {
 struct PremiumPaywallView: View {
     @EnvironmentObject private var purchases: PurchaseManager
     @Environment(\.dismiss) private var dismiss
-    @State private var eligibleForTrial = false
+    @State var eligibleForTrial = false
 
     private struct Benefit: Identifiable {
         let title: LocalizedStringKey
@@ -4709,9 +4709,9 @@ final class RoadmapStore: ObservableObject {
 #endif
 
 struct RoadmapView: View {
-    @StateObject private var roadmap = RoadmapStore()
-    @State private var filter: FeatureRequest.Status?
-    @State private var suggesting = false
+    @StateObject var roadmap = RoadmapStore()
+    @State var filter: FeatureRequest.Status?
+    @State var suggesting = false
 
     private var visible: [FeatureRequest] {
         guard let filter else { return roadmap.requests }
@@ -4933,9 +4933,9 @@ struct FeatureRequestDetailView: View {
 struct SuggestFeatureView: View {
     @ObservedObject var roadmap: RoadmapStore
     @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
-    @State private var details = ""
-    @State private var isSending = false
+    @State var title = ""
+    @State var details = ""
+    @State var isSending = false
 
     var body: some View {
         NavigationStack {
@@ -5006,8 +5006,8 @@ enum AlternateIcon: String, CaseIterable, Identifiable {
 }
 
 struct AppIconPickerView: View {
-    @State private var selection = AlternateIcon.current
-    @State private var errorMessage: String?
+    @State var selection = AlternateIcon.current
+    @State var errorMessage: String?
 
     var body: some View {
         ScrollView {
@@ -5250,11 +5250,11 @@ struct ImportExportView: View {
     private enum Picking { case csv, backup }
 
     @EnvironmentObject private var store: ReadingStore
-    @State private var backupURL: URL?
-    @State private var csvURL: URL?
-    @State private var picking: Picking?
-    @State private var pendingBackup: ReadingSnapshot?
-    @State private var message: String?
+    @State var backupURL: URL?
+    @State var csvURL: URL?
+    @State var picking: Picking?
+    @State var pendingBackup: ReadingSnapshot?
+    @State var message: String?
 
     var body: some View {
         Form {
@@ -5394,7 +5394,7 @@ struct OnboardingView: View {
     private enum Step { case welcome, source, goal, importBooks, firstBook }
 
     @EnvironmentObject private var store: ReadingStore
-    @State private var step = Step.welcome
+    @State var step = Step.welcome
 
     var body: some View {
         Group {
@@ -5591,7 +5591,7 @@ private struct OnboardingSourceStep: View {
     }
 
     @AppStorage("onboarding_referral_source") private var storedSource = ""
-    @State private var selection: Source?
+    @State var selection: Source?
     let onBack: () -> Void
     let onContinue: () -> Void
 
@@ -5656,9 +5656,9 @@ private struct OnboardingImportStep: View {
     @EnvironmentObject private var store: ReadingStore
     let onBack: () -> Void
     let onContinue: () -> Void
-    @State private var picking = false
-    @State private var importedCount: Int?
-    @State private var errorMessage: String?
+    @State var picking = false
+    @State var importedCount: Int?
+    @State var errorMessage: String?
 
     var body: some View {
         OnboardingStepLayout(
@@ -5737,9 +5737,9 @@ private struct OnboardingGoalStep: View {
     let onBack: () -> Void
     let onContinue: () -> Void
 
-    @State private var choice = Choice.minutesPerDay
-    @State private var minutes = 20
-    @State private var books = 12
+    @State var choice = Choice.minutesPerDay
+    @State var minutes = 20
+    @State var books = 12
 
     var body: some View {
         OnboardingStepLayout(
@@ -5842,7 +5842,7 @@ private struct OnboardingFirstBookStep: View {
     @EnvironmentObject private var store: ReadingStore
     let onBack: () -> Void
     let onFinish: () -> Void
-    @State private var addingBook = false
+    @State var addingBook = false
 
     var body: some View {
         OnboardingStepLayout(
@@ -6139,8 +6139,8 @@ final class AdManager: NSObject, ObservableObject {
 /// An adaptive AdMob banner that takes no space until an ad has loaded, and none at all for Premium users.
 struct AdBanner: View {
     @ObservedObject private var ads = AdManager.shared
-    @State private var width: CGFloat = 0
-    @State private var loadedHeight: CGFloat = 0
+    @State var width: CGFloat = 0
+    @State var loadedHeight: CGFloat = 0
 
     var body: some View {
         if !ads.isAdFree, ads.sdkStarted, let unitID = ads.bannerUnitID {

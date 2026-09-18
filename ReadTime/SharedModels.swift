@@ -233,7 +233,7 @@ struct CoverImage: View {
     let coverURL: String?
     /// Keep the downloaded image on disk. Search result thumbnails only stay in memory.
     var persist = true
-    @State private var remoteImage: UIImage?
+    @State var remoteImage: UIImage?
 
     var body: some View {
         Group {
