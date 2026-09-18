@@ -188,7 +188,7 @@ struct ReadTimeApp: App {
             store.save()
             // Keep the iCloud copy current whenever the user leaves the app.
             if iCloudSyncEnabled {
-                try? CloudBackup.backUp(store.snapshot)
+                try? CloudBackup.backUp(JSONEncoder().encode(store.snapshot))
             }
         }
     }
@@ -3597,27 +3597,30 @@ enum CloudBackup {
     }
 
     static var lastBackupDate: Date? {
-        try? latestSnapshot().savedAt
+        try? JSONDecoder().decode(ReadingSnapshot.self, from: latestData()).savedAt
     }
 
-    static func backUp(_ snapshot: ReadingSnapshot) throws {
+    /// Takes/returns raw JSON `Data` rather than `ReadingSnapshot` directly —
+    /// Skip's Android bridging couldn't handle `ReadingSnapshot` crossing this
+    /// function boundary ("does not appear to be a bridged type"); callers
+    /// encode/decode the snapshot themselves.
+    static func backUp(_ data: Data) throws {
         guard isAvailable else { throw BackupError.iCloudUnavailable }
-        let data = try JSONEncoder().encode(snapshot)
         NSUbiquitousKeyValueStore.default.set(data, forKey: backupKey)
         NSUbiquitousKeyValueStore.default.synchronize()
     }
 
-    static func restore() throws -> ReadingSnapshot {
+    static func restore() throws -> Data {
         guard isAvailable else { throw BackupError.iCloudUnavailable }
         NSUbiquitousKeyValueStore.default.synchronize()
-        return try latestSnapshot()
+        return try latestData()
     }
 
-    private static func latestSnapshot() throws -> ReadingSnapshot {
+    private static func latestData() throws -> Data {
         guard let data = NSUbiquitousKeyValueStore.default.data(forKey: backupKey) else {
             throw BackupError.noBackup
         }
-        return try JSONDecoder().decode(ReadingSnapshot.self, from: data)
+        return data
     }
 }
 #else
@@ -3648,23 +3651,22 @@ enum CloudBackup {
     static var isAvailable: Bool { true }
 
     static var lastBackupDate: Date? {
-        try? latestSnapshot().savedAt
+        try? JSONDecoder().decode(ReadingSnapshot.self, from: latestData()).savedAt
     }
 
-    static func backUp(_ snapshot: ReadingSnapshot) throws {
-        let data = try JSONEncoder().encode(snapshot)
+    static func backUp(_ data: Data) throws {
         UserDefaults.standard.set(data, forKey: backupKey)
     }
 
-    static func restore() throws -> ReadingSnapshot {
-        try latestSnapshot()
+    static func restore() throws -> Data {
+        try latestData()
     }
 
-    private static func latestSnapshot() throws -> ReadingSnapshot {
+    private static func latestData() throws -> Data {
         guard let data = UserDefaults.standard.data(forKey: backupKey) else {
             throw BackupError.noBackup
         }
-        return try JSONDecoder().decode(ReadingSnapshot.self, from: data)
+        return data
     }
 }
 #endif
@@ -4066,7 +4068,7 @@ struct SettingsView: View {
             }
             .confirmationDialog("Restore from iCloud?", isPresented: $confirmingRestore, titleVisibility: .visible) {
                 Button("Replace Data on This iPhone", role: .destructive) {
-                    run { store.restore(from: try CloudBackup.restore()) }
+                    run { store.restore(from: try JSONDecoder().decode(ReadingSnapshot.self, from: try CloudBackup.restore())) }
                     if backupMessage == nil { backupMessage = String(localized: "Your reading data was restored.") }
                 }
             } message: {
@@ -4180,10 +4182,10 @@ struct SettingsView: View {
                 Label("Sync with iCloud", systemImage: "icloud")
             }
             .onChange(of: iCloudSyncEnabled) { enabled in
-                if enabled { run { try CloudBackup.backUp(store.snapshot) } }
+                if enabled { run { try CloudBackup.backUp(JSONEncoder().encode(store.snapshot)) } }
             }
             Button {
-                run { try CloudBackup.backUp(store.snapshot) }
+                run { try CloudBackup.backUp(JSONEncoder().encode(store.snapshot)) }
                 if backupMessage == nil { backupMessage = String(localized: "Your reading data was backed up.") }
             } label: {
                 Label("Back Up Now", systemImage: "icloud.and.arrow.up")
