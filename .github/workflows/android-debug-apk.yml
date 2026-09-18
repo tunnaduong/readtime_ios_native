@@ -44,7 +44,13 @@ jobs:
           java-version: "17"
 
       - name: Set up Android SDK
+        # android-actions/setup-android's default package list includes the
+        # legacy "tools" package, which Google has removed from the SDK
+        # repository — that fails with "Failed to find package 'tools'" on
+        # current runners. Install only what's actually needed instead.
         uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-34 build-tools;34.0.0"
 
       - name: Skip doctor (sanity-check the toolchain)
         run: skip --version && skip doctor || true
