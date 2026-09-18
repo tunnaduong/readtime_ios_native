@@ -2,7 +2,9 @@ import SwiftUI
 #if canImport(CryptoKit)
 import CryptoKit
 #endif
+#if canImport(UserNotifications)
 import UserNotifications
+#endif
 import UniformTypeIdentifiers
 // Frameworks with no Skip/Android equivalent: Skip transpiles this file to
 // Kotlin/Compose, so these are compiled only for the Darwin (iOS) target. Each
@@ -1510,6 +1512,7 @@ struct ReminderCard: View {
     }
 }
 
+#if canImport(UserNotifications)
 enum ReminderManager {
     private static let dailyIdentifier = "readtime.daily-reminder"
     private static let allIdentifiers = [dailyIdentifier] + (1...7).map { "\(dailyIdentifier).\($0)" }
@@ -1544,6 +1547,16 @@ enum ReminderManager {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: allIdentifiers)
     }
 }
+#else
+/// TODO(android): schedule daily reading reminders via AlarmManager/
+/// WorkManager (or whatever cross-platform notification API Skip Fuse
+/// provides, if any) — UserNotifications doesn't exist under Skip Fuse's
+/// Android cross-compile ("no such module 'UserNotifications'").
+enum ReminderManager {
+    static func schedule(at date: Date, weekdays: [Int] = Array(1...7)) {}
+    static func cancel() {}
+}
+#endif
 
 // MARK: - Goal creation
 
