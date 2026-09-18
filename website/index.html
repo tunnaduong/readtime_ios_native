@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReadTime – Xây thói quen đọc sách mỗi ngày</title>
+<meta name="description" content="ReadTime giúp bạn theo dõi sách, bấm giờ phiên đọc, đặt mục tiêu và xem thống kê đọc sách trên iPhone.">
+<link rel="icon" href="assets/icon.png">
+<style>
+:root{--p:#6941C6;--p2:#9A7BEA;--pl:#F4EFFF;--ink:#1D1530;--mute:#6B6380;--bg:#FFFFFF;--card:#FAF8FF;--line:#ECE6F8}
+@media (prefers-color-scheme:dark){:root{--pl:#231A3A;--ink:#F3F0FA;--mute:#A79FBD;--bg:#110C1C;--card:#1A1329;--line:#2C2340}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+nav{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px}
+.logo img{width:36px;height:36px;border-radius:9px}
+.links{display:flex;gap:28px;font-size:15px;color:var(--mute)}
+.links a:hover{color:var(--p)}
+.btn{display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:var(--bg);padding:12px 22px;border-radius:14px;font-weight:600;transition:transform .15s}
+.btn:hover{transform:translateY(-2px)}
+.btn .apple{width:22px;height:26px;flex-shrink:0}
+.btn small{display:block;font-size:11px;font-weight:400;opacity:.8;line-height:1}
+.btn.alt{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.hero{padding:80px 0 60px;background:radial-gradient(ellipse at 70% 0%,var(--pl),transparent 60%)}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center}
+.tag{display:inline-block;background:var(--pl);color:var(--p2);font-weight:600;font-size:13px;padding:6px 14px;border-radius:99px;margin-bottom:20px}
+h1{font-size:clamp(38px,6vw,62px);line-height:1.08;letter-spacing:-.02em;margin-bottom:20px}
+h1 span{background:linear-gradient(90deg,var(--p),var(--p2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:19px;color:var(--mute);max-width:520px;margin-bottom:32px}
+.cta{display:flex;gap:14px;flex-wrap:wrap}
+.phone{justify-self:center;width:290px;height:590px;border-radius:46px;background:#0c0816;padding:12px;box-shadow:0 40px 80px -20px rgba(105,65,198,.45)}
+.screen{height:100%;border-radius:36px;background:#F7F4FE;color:#1D1530;padding:44px 18px 18px;overflow:hidden;font-size:13px}
+.screen h4{font-size:22px;margin-bottom:14px}
+.s-card{background:#fff;border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.s-book{display:flex;gap:12px;align-items:center}
+.cover{width:44px;height:62px;border-radius:6px;background:linear-gradient(160deg,#9A7BEA,#6941C6);flex-shrink:0}
+.bar{height:7px;background:#ECE6F8;border-radius:9px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:#6941C6;border-radius:9px}
+.timer{text-align:center;font-size:40px;font-weight:700;color:#6941C6;font-variant-numeric:tabular-nums}
+.chart{display:flex;align-items:flex-end;gap:8px;height:80px;margin-top:8px}
+.chart b{flex:1;background:#C9B8F5;border-radius:5px}
+.chart b.on{background:#6941C6}
+.mute{color:#6B6380;font-size:12px}
+section{padding:90px 0}
+.sec-h{text-align:center;max-width:640px;margin:0 auto 56px}
+.sec-h h2{font-size:clamp(30px,4vw,42px);letter-spacing:-.02em;margin-bottom:12px}
+.sec-h p{color:var(--mute);font-size:18px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.f{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:28px}
+.f .ic{width:48px;height:48px;border-radius:14px;background:var(--pl);display:grid;place-items:center;font-size:24px;margin-bottom:18px}
+.f h3{font-size:19px;margin-bottom:8px}
+.f p{color:var(--mute);font-size:15px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;counter-reset:s}
+.step{text-align:center}
+.step:before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:56px;height:56px;margin:0 auto 16px;border-radius:50%;background:var(--p);color:#fff;font-weight:700;font-size:22px}
+.step h3{margin-bottom:6px}.step p{color:var(--mute)}
+.alt-bg{background:var(--card)}
+.icons{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:10px}
+.icons img{width:80px;height:80px;border-radius:20px;box-shadow:0 8px 20px rgba(0,0,0,.12)}
+.faq{max-width:760px;margin:0 auto}
+details{border-bottom:1px solid var(--line);padding:20px 0}
+summary{font-weight:600;font-size:17px;cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+summary:after{content:"+";color:var(--p);font-size:22px}
+details[open] summary:after{content:"–"}
+details p{color:var(--mute);margin-top:10px}
+.final{margin:0 20px 80px;border-radius:32px;background:linear-gradient(135deg,#6941C6,#9A7BEA);color:#fff;text-align:center;padding:80px 20px}
+.final h2{font-size:clamp(30px,4vw,44px);margin-bottom:12px}
+.final p{opacity:.9;font-size:18px;margin-bottom:30px}
+.final .btn{background:#fff;color:#1D1530}
+footer{border-top:1px solid var(--line);padding:30px 0;color:var(--mute);font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.right{display:flex;gap:10px;align-items:center}
+#lang{font:inherit;font-size:14px;padding:8px 10px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+@media (max-width:860px){
+ .hero .wrap{grid-template-columns:1fr;text-align:center}
+ .lead{margin-left:auto;margin-right:auto}.cta{justify-content:center}
+ .grid,.steps{grid-template-columns:1fr}
+ .links{display:none}
+ .hero .wrap>*{min-width:0}
+ .phone{width:260px;height:530px}
+}
+@media (max-width:520px){.right .btn{display:none}}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a href="#" class="logo"><img src="assets/icon.png" alt="">ReadTime</a>
+  <div class="links"><a href="#tinh-nang" data-i="nav1">Tính năng</a><a href="#cach-dung" data-i="nav2">Cách dùng</a><a href="#faq" data-i="nav3">Hỏi đáp</a></div>
+  <div class="right"><select id="lang" aria-label="Language"><option value="vi">🇻🇳 VI</option><option value="en">🇺🇸 EN</option><option value="es">🇪🇸 ES</option><option value="ja">🇯🇵 JA</option><option value="zh">🇨🇳 中文</option></select>
+  <a href="#tai-app" class="btn" style="padding:9px 18px" data-i="get">Tải app</a></div>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <div>
+    <span class="tag" data-i="tag">📚 Ứng dụng đọc sách cho iPhone</span>
+    <h1 data-i="h1">Đọc nhiều hơn,<br><span>mỗi ngày một chút.</span></h1>
+    <p class="lead" data-i="lead">ReadTime giúp bạn theo dõi từng cuốn sách, bấm giờ phiên đọc, đặt mục tiêu và nhìn thấy sự tiến bộ của mình qua những biểu đồ đẹp mắt.</p>
+    <div class="cta">
+      <a href="#tai-app" class="btn"><svg class="apple" viewBox="0 0 384 512" aria-hidden="true"><path fill="currentColor" d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg><span><small data-i="dl">Tải về trên</small>App Store</span></a>
+      <a href="#tinh-nang" class="btn alt" data-i="explore">Khám phá tính năng</a>
+    </div>
+  </div>
+  <div class="phone" aria-hidden="true"><div class="screen">
+    <h4 data-i="m_hi">Chào buổi tối 👋</h4>
+    <div class="s-card s-book"><div class="cover"></div><div style="flex:1"><b data-i="m_book">Nhà Giả Kim</b><div class="mute" data-i="m_page">Trang 142 / 228</div><div class="bar"><i style="width:62%"></i></div></div></div>
+    <div class="s-card"><div class="mute" style="text-align:center" data-i="m_sess">Phiên đọc hiện tại</div><div class="timer">24:08</div></div>
+    <div class="s-card"><b data-i="m_week">Tuần này</b> <span class="mute" data-i="m_time">· 3 giờ 40 phút</span>
+      <div class="chart"><b style="height:40%"></b><b style="height:65%"></b><b style="height:30%"></b><b style="height:80%"></b><b class="on" style="height:100%"></b><b style="height:50%"></b><b style="height:20%"></b></div></div>
+    <div class="s-card"><b data-i="m_goal">🎯 Mục tiêu năm</b><div class="mute" data-i="m_books">14 / 24 cuốn</div><div class="bar"><i style="width:58%"></i></div></div>
+  </div></div>
+</div></header>
+
+<section id="tinh-nang"><div class="wrap">
+  <div class="sec-h"><h2 data-i="t1">Mọi thứ bạn cần để đọc đều đặn</h2><p data-i="t19">Được xây dựng hoàn toàn native bằng SwiftUI – nhanh, mượt và đúng chất iOS.</p></div>
+  <div class="grid">
+    <div class="f"><div class="ic">⏱️</div><h3 data-i="t2">Bấm giờ phiên đọc</h3><p data-i="t20">Bắt đầu một phiên đọc chỉ bằng một chạm, cập nhật trang hiện tại khi kết thúc.</p></div>
+    <div class="f"><div class="ic">🎯</div><h3 data-i="t3">Mục tiêu đọc sách</h3><p data-i="t21">Đặt mục tiêu theo số sách hoặc thời gian. Tiến độ được tính tự động sau mỗi phiên.</p></div>
+    <div class="f"><div class="ic">📖</div><h3 data-i="t4">Thư viện cá nhân</h3><p data-i="t22">Tìm sách nhanh qua Google Books & Open Library, quản lý trạng thái: muốn đọc, đang đọc, đã đọc.</p></div>
+    <div class="f"><div class="ic">📊</div><h3 data-i="t5">Thống kê trực quan</h3><p data-i="t23">Biểu đồ đọc theo tuần và theo thể loại với Swift Charts – thấy rõ thói quen của bạn.</p></div>
+    <div class="f"><div class="ic">✍️</div><h3 data-i="t6">Nhật ký đọc</h3><p data-i="t24">Ghi lại cảm nghĩ, trích dẫn yêu thích ngay sau mỗi phiên đọc.</p></div>
+    <div class="f"><div class="ic">🔔</div><h3 data-i="t7">Nhắc nhở & Widget</h3><p data-i="t25">Nhắc đọc hằng ngày và widget màn hình chính để tiến độ luôn trong tầm mắt.</p></div>
+  </div>
+</div></section>
+
+<section id="cach-dung" class="alt-bg"><div class="wrap">
+  <div class="sec-h"><h2 data-i="t8">Bắt đầu trong 3 bước</h2><p data-i="t26">Không cần đăng ký tài khoản.</p></div>
+  <div class="steps">
+    <div class="step"><h3 data-i="t9">Thêm sách</h3><p data-i="t27">Tìm cuốn bạn đang đọc và thêm vào thư viện.</p></div>
+    <div class="step"><h3 data-i="t10">Bấm giờ & đọc</h3><p data-i="t28">Mở phiên đọc, tập trung, rồi ghi lại trang đã đến.</p></div>
+    <div class="step"><h3 data-i="t11">Theo dõi tiến bộ</h3><p data-i="t29">Xem mục tiêu và biểu đồ lớn dần theo từng ngày.</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="sec-h"><h2 data-i="t12">Biểu tượng theo phong cách của bạn</h2><p data-i="t30">Chọn icon app yêu thích: Default, Ocean, Forest, Sunset, Midnight, Paper.</p></div>
+  <div class="icons">
+    <img src="assets/icon.png" alt="Default"><img src="assets/icon-ocean.png" alt="Ocean"><img src="assets/icon-forest.png" alt="Forest">
+    <img src="assets/icon-sunset.png" alt="Sunset"><img src="assets/icon-midnight.png" alt="Midnight"><img src="assets/icon-paper.png" alt="Paper">
+  </div>
+</div></section>
+
+<section id="faq" class="alt-bg"><div class="wrap">
+  <div class="sec-h"><h2 data-i="t13">Câu hỏi thường gặp</h2></div>
+  <div class="faq">
+    <details><summary data-i="t14">ReadTime có miễn phí không?</summary><p data-i="t31">Có. Bạn dùng miễn phí mọi tính năng chính. Gói Premium giúp loại bỏ quảng cáo và ủng hộ nhà phát triển.</p></details>
+    <details><summary data-i="t15">ReadTime chạy trên thiết bị nào?</summary><p data-i="t32">ReadTime dành cho iPhone, được viết native bằng SwiftUI.</p></details>
+    <details><summary data-i="t16">Dữ liệu của tôi được lưu ở đâu?</summary><p data-i="t33">Sách, phiên đọc và nhật ký được lưu trên thiết bị của bạn.</p></details>
+    <details><summary data-i="t17">Tôi có thể đề xuất tính năng mới không?</summary><p data-i="t34">Được! Trong app có mục Roadmap để bạn gửi ý tưởng và bình chọn tính năng muốn có tiếp theo.</p></details>
+  </div>
+</div></section>
+
+<section id="tai-app" style="padding:0">
+  <div class="final">
+    <h2 data-i="t18">Sẵn sàng đọc nhiều hơn?</h2>
+    <p data-i="t35">Tải ReadTime và bắt đầu phiên đọc đầu tiên ngay hôm nay.</p>
+    <a href="#" class="btn"><svg class="apple" viewBox="0 0 384 512" aria-hidden="true"><path fill="currentColor" d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg><span><small data-i="dl">Tải về trên</small>App Store</span></a>
+  </div>
+</section>
+
+<footer><div class="wrap">
+  <span data-i="copy">© 2026 ReadTime. Mọi quyền được bảo lưu.</span>
+  <span><a href="privacy.html" data-i="priv">Chính sách bảo mật</a> · <a href="terms.html" data-i="terms">Điều khoản</a> · <a href="mailto:support@tunnaduong.com" data-i="contact">Liên hệ</a></span>
+</div></footer>
+
+<script>
+const T={
+en:{title:"ReadTime – Build a daily reading habit",nav1:"Features",nav2:"How it works",nav3:"FAQ",get:"Get the app",tag:"📚 Reading tracker for iPhone",h1:"Read more,<br><span>a little every day.</span>",lead:"ReadTime helps you track every book, time your reading sessions, set goals and see your progress in beautiful charts.",dl:"Download on the",explore:"Explore features",m_hi:"Good evening 👋",m_book:"The Alchemist",m_page:"Page 142 / 228",m_sess:"Current session",m_week:"This week",m_time:"· 3h 40m",m_goal:"🎯 Yearly goal",m_books:"14 / 24 books",
+t1:"Everything you need to read consistently",t19:"Built fully native in SwiftUI – fast, smooth and truly iOS.",t2:"Reading timer",t20:"Start a reading session with one tap and update your current page when you finish.",t3:"Reading goals",t21:"Set goals by books or time. Progress updates automatically after every session.",t4:"Personal library",t22:"Find books fast via Google Books & Open Library, and track them as want to read, reading or finished.",t5:"Visual stats",t23:"Weekly and by-genre charts powered by Swift Charts – see your habits clearly.",t6:"Reading journal",t24:"Capture thoughts and favorite quotes right after each session.",t7:"Reminders & Widgets",t25:"Daily reading reminders and Home Screen widgets keep progress in sight.",t8:"Get started in 3 steps",t26:"No account required.",t9:"Add a book",t27:"Search for what you're reading and add it to your library.",t10:"Start the timer & read",t28:"Open a session, focus, then log the page you reached.",t11:"Track your progress",t29:"Watch your goals and charts grow day by day.",t12:"An icon that fits your style",t30:"Pick your favorite app icon: Default, Ocean, Forest, Sunset, Midnight, Paper.",t13:"Frequently asked questions",t14:"Is ReadTime free?",t31:"Yes. All core features are free. Premium removes ads and supports the developer.",t15:"Which devices does ReadTime support?",t32:"ReadTime is made for iPhone, written natively in SwiftUI.",t16:"Where is my data stored?",t33:"Your books, sessions and journal are stored on your device.",t17:"Can I suggest new features?",t34:"Yes! The in-app Roadmap lets you submit ideas and vote on what comes next.",t18:"Ready to read more?",t35:"Download ReadTime and start your first reading session today.",copy:"© 2026 ReadTime. All rights reserved.",priv:"Privacy Policy",terms:"Terms",contact:"Contact"},
+es:{title:"ReadTime – Crea el hábito de leer cada día",nav1:"Funciones",nav2:"Cómo funciona",nav3:"Preguntas",get:"Descargar",tag:"📚 Registro de lectura para iPhone",h1:"Lee más,<br><span>un poco cada día.</span>",lead:"ReadTime te ayuda a seguir cada libro, cronometrar tus sesiones de lectura, fijar metas y ver tu progreso en gráficos preciosos.",dl:"Descárgalo en",explore:"Ver funciones",m_hi:"Buenas noches 👋",m_book:"El Alquimista",m_page:"Página 142 / 228",m_sess:"Sesión actual",m_week:"Esta semana",m_time:"· 3 h 40 min",m_goal:"🎯 Meta anual",m_books:"14 / 24 libros",
+t1:"Todo lo que necesitas para leer con constancia",t19:"Hecha 100 % nativa en SwiftUI: rápida, fluida y auténticamente iOS.",t2:"Cronómetro de lectura",t20:"Inicia una sesión con un toque y actualiza tu página al terminar.",t3:"Metas de lectura",t21:"Define metas por libros o por tiempo. El progreso se calcula solo tras cada sesión.",t4:"Biblioteca personal",t22:"Encuentra libros al instante con Google Books y Open Library, y márcalos como por leer, leyendo o leído.",t5:"Estadísticas visuales",t23:"Gráficos semanales y por género con Swift Charts: entiende tus hábitos.",t6:"Diario de lectura",t24:"Anota ideas y citas favoritas justo después de cada sesión.",t7:"Recordatorios y widgets",t25:"Recordatorios diarios y widgets en la pantalla de inicio para no perder el ritmo.",t8:"Empieza en 3 pasos",t26:"No necesitas crear una cuenta.",t9:"Añade un libro",t27:"Busca lo que estás leyendo y añádelo a tu biblioteca.",t10:"Cronometra y lee",t28:"Abre una sesión, concéntrate y anota la página a la que llegaste.",t11:"Sigue tu progreso",t29:"Mira cómo crecen tus metas y gráficos día a día.",t12:"Un icono a tu estilo",t30:"Elige tu icono favorito: Default, Ocean, Forest, Sunset, Midnight, Paper.",t13:"Preguntas frecuentes",t14:"¿ReadTime es gratis?",t31:"Sí. Todas las funciones principales son gratuitas. Premium elimina los anuncios y apoya al desarrollador.",t15:"¿En qué dispositivos funciona?",t32:"ReadTime está hecha para iPhone, escrita de forma nativa en SwiftUI.",t16:"¿Dónde se guardan mis datos?",t33:"Tus libros, sesiones y diario se guardan en tu dispositivo.",t17:"¿Puedo proponer nuevas funciones?",t34:"¡Claro! En la sección Roadmap de la app puedes enviar ideas y votar las siguientes funciones.",t18:"¿Listo para leer más?",t35:"Descarga ReadTime y empieza hoy tu primera sesión de lectura.",copy:"© 2026 ReadTime. Todos los derechos reservados.",priv:"Privacidad",terms:"Términos",contact:"Contacto"},
+ja:{title:"ReadTime – 毎日の読書習慣をつくろう",nav1:"機能",nav2:"使い方",nav3:"よくある質問",get:"ダウンロード",tag:"📚 iPhone向け読書記録アプリ",h1:"もっと読もう、<br><span>毎日すこしずつ。</span>",lead:"ReadTimeは、本ごとの記録、読書時間の計測、目標設定をサポートし、美しいグラフで成長を見える化します。",dl:"ダウンロード",explore:"機能を見る",m_hi:"こんばんは 👋",m_book:"アルケミスト",m_page:"142 / 228 ページ",m_sess:"現在のセッション",m_week:"今週",m_time:"· 3時間40分",m_goal:"🎯 年間目標",m_books:"14 / 24 冊",
+t1:"読書を続けるために必要なすべて",t19:"SwiftUIによる完全ネイティブ開発。速く、なめらかで、iOSらしい体験。",t2:"読書タイマー",t20:"ワンタップで読書を開始し、終了時に現在のページを記録。",t3:"読書目標",t21:"冊数や時間で目標を設定。進捗はセッションごとに自動で計算されます。",t4:"マイライブラリ",t22:"Google BooksとOpen Libraryで素早く検索し、読みたい・読書中・読了で管理。",t5:"わかりやすい統計",t23:"Swift Chartsによる週別・ジャンル別グラフで習慣がひと目でわかる。",t6:"読書日記",t24:"セッションの後に感想やお気に入りの一節を残せます。",t7:"リマインダーとウィジェット",t25:"毎日のリマインダーとホーム画面ウィジェットで進捗をいつでも確認。",t8:"3ステップで始めよう",t26:"アカウント登録は不要です。",t9:"本を追加",t27:"読んでいる本を検索してライブラリに追加。",t10:"タイマーを押して読む",t28:"セッションを開始して集中し、読み終えたページを記録。",t11:"成長を確認",t29:"目標とグラフが日々伸びていくのを楽しもう。",t12:"好みに合わせたアイコン",t30:"お気に入りのアイコンを選択：Default、Ocean、Forest、Sunset、Midnight、Paper。",t13:"よくある質問",t14:"ReadTimeは無料ですか？",t31:"はい。主な機能はすべて無料です。プレミアムでは広告が非表示になり、開発者の支援にもなります。",t15:"対応デバイスは？",t32:"ReadTimeはiPhone向けに、SwiftUIでネイティブに開発されています。",t16:"データはどこに保存されますか？",t33:"本、読書セッション、日記はお使いのデバイスに保存されます。",t17:"新機能を提案できますか？",t34:"はい！アプリ内のロードマップからアイデアを送ったり、次の機能に投票したりできます。",t18:"もっと読む準備はできましたか？",t35:"ReadTimeをダウンロードして、今日から最初の読書セッションを始めましょう。",copy:"© 2026 ReadTime. All rights reserved.",priv:"プライバシーポリシー",terms:"利用規約",contact:"お問い合わせ"},
+zh:{title:"ReadTime – 养成每天阅读的习惯",nav1:"功能",nav2:"使用方法",nav3:"常见问题",get:"下载应用",tag:"📚 iPhone 阅读记录应用",h1:"多读一点，<br><span>每天进步一点。</span>",lead:"ReadTime 帮你记录每一本书、为阅读计时、设定目标，并通过精美图表看到自己的进步。",dl:"下载于",explore:"探索功能",m_hi:"晚上好 👋",m_book:"牧羊少年奇幻之旅",m_page:"第 142 / 228 页",m_sess:"当前阅读",m_week:"本周",m_time:"· 3 小时 40 分钟",m_goal:"🎯 年度目标",m_books:"14 / 24 本",
+t1:"坚持阅读所需的一切",t19:"完全使用 SwiftUI 原生开发——快速、流畅、地道的 iOS 体验。",t2:"阅读计时",t20:"一键开始阅读，结束时更新当前页码。",t3:"阅读目标",t21:"按书籍数量或时长设定目标，每次阅读后自动计算进度。",t4:"个人书库",t22:"通过 Google Books 和 Open Library 快速找书，按想读、在读、已读管理。",t5:"直观统计",t23:"基于 Swift Charts 的每周与类型图表，清楚了解你的阅读习惯。",t6:"阅读日记",t24:"每次阅读后随手记录感想和喜爱的句子。",t7:"提醒与小组件",t25:"每日阅读提醒和主屏幕小组件，让进度一目了然。",t8:"三步开始",t26:"无需注册账号。",t9:"添加书籍",t27:"搜索你正在读的书并加入书库。",t10:"计时阅读",t28:"开始计时，专注阅读，然后记录读到的页码。",t11:"追踪进步",t29:"看着目标和图表一天天增长。",t12:"随心选择图标",t30:"选择喜欢的应用图标：Default、Ocean、Forest、Sunset、Midnight、Paper。",t13:"常见问题",t14:"ReadTime 免费吗？",t31:"是的。所有核心功能均免费。高级版可去除广告并支持开发者。",t15:"支持哪些设备？",t32:"ReadTime 专为 iPhone 打造，使用 SwiftUI 原生开发。",t16:"我的数据存储在哪里？",t33:"你的书籍、阅读记录和日记都保存在你的设备上。",t17:"我可以建议新功能吗？",t34:"当然！应用内的路线图可以提交想法并为下一个功能投票。",t18:"准备好多读一点了吗？",t35:"下载 ReadTime，今天就开始你的第一次阅读。",copy:"© 2026 ReadTime. 保留所有权利。",priv:"隐私政策",terms:"条款",contact:"联系我们"}
+};
+const els=document.querySelectorAll('[data-i]');
+T.vi={title:document.title};els.forEach(e=>T.vi[e.dataset.i]=e.innerHTML);
+const sel=document.getElementById('lang');
+function setLang(l){
+  if(!T[l])l='vi';
+  els.forEach(e=>{const v=T[l][e.dataset.i];if(v!=null)e.innerHTML=v});
+  document.title=T[l].title;document.documentElement.lang=l;sel.value=l;
+  try{localStorage.setItem('rt-lang',l)}catch(e){}
+}
+sel.onchange=()=>setLang(sel.value);
+let saved=null;try{saved=localStorage.getItem('rt-lang')}catch(e){}
+const q=new URLSearchParams(location.search).get('lang');
+setLang(q||saved||({vi:'vi',en:'en',es:'es',ja:'ja',zh:'zh'})[navigator.language.slice(0,2)]||'en');
+</script>
+</body>
+</html>

@@ -20,3 +20,6 @@ ADMOB_APP_OPEN_UNIT_ID = ca-app-pub-3940256099942544/5575463023
 ADMOB_APP_OPEN_UNIT_ID[config=Release] = ca-app-pub-9033651898132595/2326361499
 
 #include? "Secrets.xcconfig"
+
+// Alternate app icons the user can pick in Settings → App Icon.
+ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = AppIcon-Midnight AppIcon-Paper AppIcon-Sunset AppIcon-Forest AppIcon-Ocean

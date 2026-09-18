@@ -30,7 +30,7 @@ source_file = app_group.new_file("ReadTimeApp.swift")
 app_group.new_file("Info.plist")
 app_group.new_file("ReadTime.entitlements")
 target.add_file_references([source_file])
-%w[Localizable.xcstrings InfoPlist.xcstrings Settings.bundle Assets.xcassets].each do |name|
+%w[Localizable.xcstrings InfoPlist.xcstrings PrivacyInfo.xcprivacy Settings.bundle Assets.xcassets].each do |name|
   target.resources_build_phase.add_file_reference(app_group.new_file(name))
 end
 %w[vi es ja zh-Hans].each { |region| project.root_object.known_regions << region }

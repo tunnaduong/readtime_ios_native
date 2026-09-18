@@ -12,12 +12,21 @@
 		84D0967B40FC3ADA6A8EB74D /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CF6BD5EA671C8317761E846C /* Foundation.framework */; };
 		90919D7DD9C0CCEAC81EE5D0 /* ReadTimeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037CC1117BA62E798947C2DC /* ReadTimeApp.swift */; };
 		9714E13583215C1F0E7FBAF9 /* steal-like-an-artist.png in Resources */ = {isa = PBXBuildFile; fileRef = B444F8E2F977AC166F033542 /* steal-like-an-artist.png */; };
-		B16BFFBCC505E74F62FB601B /* i-owe-you-one.png in Resources */ = {isa = PBXBuildFile; fileRef = 5B086D54BFB2A35B3E09DFE5 /* i-owe-you-one.png */; };
 		A1C0FFEE00000000000000B1 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE00000000000000F1 /* Localizable.xcstrings */; };
 		A1C0FFEE00000000000000B3 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE00000000000000F3 /* Settings.bundle */; };
 		A1C0FFEE00000000000000B4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE00000000000000F4 /* Assets.xcassets */; };
 		A1C0FFEE00000000000000B7 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = A1C0FFEE00000000000000P2 /* GoogleMobileAds */; };
 		A1C0FFEE00000000000000B8 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE00000000000000F8 /* InfoPlist.xcstrings */; };
+		B16BFFBCC505E74F62FB601B /* i-owe-you-one.png in Resources */ = {isa = PBXBuildFile; fileRef = 5B086D54BFB2A35B3E09DFE5 /* i-owe-you-one.png */; };
+		A1C0FFEE00000000000000B9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE00000000000000F9 /* PrivacyInfo.xcprivacy */; };
+		A1C0FFEE0000000000000W01 /* SharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W11 /* SharedModels.swift */; };
+		A1C0FFEE0000000000000W02 /* SharedModels.swift in Sources (widgets) */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W11 /* SharedModels.swift */; };
+		A1C0FFEE0000000000000W03 /* ReadTimeWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W12 /* ReadTimeWidgets.swift */; };
+		A1C0FFEE0000000000000W04 /* ReadTimeWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W20 /* ReadTimeWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A1C0FFEE0000000000000W40 /* high-output-management.png in Resources (widget) */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W30 /* high-output-management.png (widget) */; };
+		A1C0FFEE0000000000000W41 /* i-owe-you-one.png in Resources (widget) */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W31 /* i-owe-you-one.png (widget) */; };
+		A1C0FFEE0000000000000W42 /* steal-like-an-artist.png in Resources (widget) */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W32 /* steal-like-an-artist.png (widget) */; };
+		A1C0FFEE0000000000000W43 /* this-is-going-to-hurt.png in Resources (widget) */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W33 /* this-is-going-to-hurt.png (widget) */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,9 +35,7 @@
 		5B086D54BFB2A35B3E09DFE5 /* i-owe-you-one.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = "i-owe-you-one.png"; sourceTree = "<group>"; };
 		669ED50523CCF0CF044062F4 /* ReadTime.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReadTime.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6F56CA98F6B5657A91FBF51C /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B444F8E2F977AC166F033542 /* steal-like-an-artist.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = "steal-like-an-artist.png"; sourceTree = "<group>"; };
-		CF6BD5EA671C8317761E846C /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS14.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		D8758063E3FF22EB93505DCD /* high-output-management.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = "high-output-management.png"; sourceTree = "<group>"; };
+		9D679958305C2BE0008089C5 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		A1C0FFEE00000000000000F1 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		A1C0FFEE00000000000000F2 /* ReadTime.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ReadTime.entitlements; sourceTree = "<group>"; };
 		A1C0FFEE00000000000000F3 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
@@ -36,7 +43,34 @@
 		A1C0FFEE00000000000000F5 /* ReadTime.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ReadTime.xcconfig; sourceTree = "<group>"; };
 		A1C0FFEE00000000000000F6 /* Secrets.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.example.xcconfig; sourceTree = "<group>"; };
 		A1C0FFEE00000000000000F8 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		B444F8E2F977AC166F033542 /* steal-like-an-artist.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = "steal-like-an-artist.png"; sourceTree = "<group>"; };
+		CF6BD5EA671C8317761E846C /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS14.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		D8758063E3FF22EB93505DCD /* high-output-management.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = "high-output-management.png"; sourceTree = "<group>"; };
+		A1C0FFEE00000000000000F9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A1C0FFEE0000000000000W11 /* SharedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedModels.swift; sourceTree = "<group>"; };
+		A1C0FFEE0000000000000W12 /* ReadTimeWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadTimeWidgets.swift; sourceTree = "<group>"; };
+		A1C0FFEE0000000000000W13 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1C0FFEE0000000000000W14 /* ReadTimeWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ReadTimeWidgets.entitlements; sourceTree = "<group>"; };
+		A1C0FFEE0000000000000W20 /* ReadTimeWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ReadTimeWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1C0FFEE0000000000000W30 /* high-output-management.png (widget) */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "high-output-management.png"; path = "ReadTime/Resources/high-output-management.png"; sourceTree = SOURCE_ROOT; };
+		A1C0FFEE0000000000000W31 /* i-owe-you-one.png (widget) */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "i-owe-you-one.png"; path = "ReadTime/Resources/i-owe-you-one.png"; sourceTree = SOURCE_ROOT; };
+		A1C0FFEE0000000000000W32 /* steal-like-an-artist.png (widget) */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "steal-like-an-artist.png"; path = "ReadTime/Resources/steal-like-an-artist.png"; sourceTree = SOURCE_ROOT; };
+		A1C0FFEE0000000000000W33 /* this-is-going-to-hurt.png (widget) */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "this-is-going-to-hurt.png"; path = "ReadTime/Resources/this-is-going-to-hurt.png"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A1C0FFEE0000000000000W60 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A1C0FFEE0000000000000W04 /* ReadTimeWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		748FBA06DC2BA1CB272A70F4 /* Frameworks */ = {
@@ -45,6 +79,13 @@
 			files = (
 				84D0967B40FC3ADA6A8EB74D /* Foundation.framework in Frameworks */,
 				A1C0FFEE00000000000000B7 /* GoogleMobileAds in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C0FFEE0000000000000W62 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -73,6 +114,7 @@
 				9583569D7E5C56A08A9C36F6 /* Products */,
 				1421154C385C8460105D02C0 /* Frameworks */,
 				9E4607AA49DAD54A63820E1C /* ReadTime */,
+							A1C0FFEE0000000000000W50 /* ReadTimeWidgets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -91,6 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				669ED50523CCF0CF044062F4 /* ReadTime.app */,
+				A1C0FFEE0000000000000W20 /* ReadTimeWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -100,10 +143,12 @@
 			children = (
 				037CC1117BA62E798947C2DC /* ReadTimeApp.swift */,
 				6F56CA98F6B5657A91FBF51C /* Info.plist */,
+				A1C0FFEE0000000000000W11 /* SharedModels.swift */,
 				A1C0FFEE00000000000000G1 /* Config */,
 				A1C0FFEE00000000000000F2 /* ReadTime.entitlements */,
 				A1C0FFEE00000000000000F1 /* Localizable.xcstrings */,
 				A1C0FFEE00000000000000F8 /* InfoPlist.xcstrings */,
+				A1C0FFEE00000000000000F9 /* PrivacyInfo.xcprivacy */,
 				A1C0FFEE00000000000000F3 /* Settings.bundle */,
 				A1C0FFEE00000000000000F4 /* Assets.xcassets */,
 				8A537530DD1E513BDEA0A40F /* Resources */,
@@ -116,8 +161,19 @@
 			children = (
 				A1C0FFEE00000000000000F5 /* ReadTime.xcconfig */,
 				A1C0FFEE00000000000000F6 /* Secrets.example.xcconfig */,
+				9D679958305C2BE0008089C5 /* Secrets.xcconfig */,
 			);
 			path = Config;
+			sourceTree = "<group>";
+		};
+		A1C0FFEE0000000000000W50 /* ReadTimeWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				A1C0FFEE0000000000000W12 /* ReadTimeWidgets.swift */,
+				A1C0FFEE0000000000000W13 /* Info.plist */,
+				A1C0FFEE0000000000000W14 /* ReadTimeWidgets.entitlements */,
+			);
+			path = ReadTimeWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -130,10 +186,12 @@
 				BDA0D6F150147077A058FA27 /* Sources */,
 				748FBA06DC2BA1CB272A70F4 /* Frameworks */,
 				48CD839C28984852A000067D /* Resources */,
+				A1C0FFEE0000000000000W60 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A1C0FFEE0000000000000W70 /* PBXTargetDependency */,
 			);
 			name = ReadTimeNative;
 			packageProductDependencies = (
@@ -143,7 +201,34 @@
 			productReference = 669ED50523CCF0CF044062F4 /* ReadTime.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A1C0FFEE0000000000000W80 /* ReadTimeWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1C0FFEE0000000000000W90 /* Build configuration list for PBXNativeTarget "ReadTimeWidgets" */;
+			buildPhases = (
+				A1C0FFEE0000000000000W61 /* Sources */,
+				A1C0FFEE0000000000000W62 /* Frameworks */,
+				A1C0FFEE0000000000000W63 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ReadTimeWidgets;
+			productName = ReadTimeWidgets;
+			productReference = A1C0FFEE0000000000000W20 /* ReadTimeWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		A1C0FFEE0000000000000W71 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F6EA4622010378F92CD998E0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A1C0FFEE0000000000000W80;
+			remoteInfo = ReadTimeWidgets;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXProject section */
 		F6EA4622010378F92CD998E0 /* Project object */ = {
@@ -178,9 +263,18 @@
 			projectRoot = "";
 			targets = (
 				F549A79923F47E719350B3D1 /* ReadTimeNative */,
+				A1C0FFEE0000000000000W80 /* ReadTimeWidgets */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXTargetDependency section */
+		A1C0FFEE0000000000000W70 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A1C0FFEE0000000000000W80 /* ReadTimeWidgets */;
+			targetProxy = A1C0FFEE0000000000000W71 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
 		48CD839C28984852A000067D /* Resources */ = {
@@ -193,8 +287,20 @@
 				3B9BF6881A26A6CA94E57ACB /* this-is-going-to-hurt.png in Resources */,
 				A1C0FFEE00000000000000B1 /* Localizable.xcstrings in Resources */,
 				A1C0FFEE00000000000000B8 /* InfoPlist.xcstrings in Resources */,
+				A1C0FFEE00000000000000B9 /* PrivacyInfo.xcprivacy in Resources */,
 				A1C0FFEE00000000000000B3 /* Settings.bundle in Resources */,
 				A1C0FFEE00000000000000B4 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C0FFEE0000000000000W63 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1C0FFEE0000000000000W40 /* high-output-management.png in Resources (widget) */,
+				A1C0FFEE0000000000000W41 /* i-owe-you-one.png in Resources (widget) */,
+				A1C0FFEE0000000000000W42 /* steal-like-an-artist.png in Resources (widget) */,
+				A1C0FFEE0000000000000W43 /* this-is-going-to-hurt.png in Resources (widget) */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -205,7 +311,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1C0FFEE0000000000000W01 /* SharedModels.swift in Sources */,
 				90919D7DD9C0CCEAC81EE5D0 /* ReadTimeApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C0FFEE0000000000000W61 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1C0FFEE0000000000000W03 /* ReadTimeWidgets.swift in Sources */,
+				A1C0FFEE0000000000000W02 /* SharedModels.swift in Sources (widgets) */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -334,17 +450,20 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = ReadTime/ReadTime.entitlements;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 62H5L8QDTS;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ReadTime/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fatties.readtime;
 				PRODUCT_NAME = ReadTime;
 				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -358,20 +477,77 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = ReadTime/ReadTime.entitlements;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 62H5L8QDTS;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ReadTime/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fatties.readtime;
 				PRODUCT_NAME = ReadTime;
 				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A1C0FFEE0000000000000W91 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ReadTimeWidgets/ReadTimeWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 62H5L8QDTS;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ReadTimeWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fatties.readtime.Widgets;
+				PRODUCT_NAME = ReadTimeWidgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A1C0FFEE0000000000000W92 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ReadTimeWidgets/ReadTimeWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 62H5L8QDTS;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ReadTimeWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fatties.readtime.Widgets;
+				PRODUCT_NAME = ReadTimeWidgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -392,6 +568,15 @@
 			buildConfigurations = (
 				50D1A74765F4C24AC344F86B /* Debug */,
 				3DFF1F80F5E32BA5CD6A9524 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1C0FFEE0000000000000W90 /* Build configuration list for PBXNativeTarget "ReadTimeWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1C0FFEE0000000000000W92 /* Release */,
+				A1C0FFEE0000000000000W91 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

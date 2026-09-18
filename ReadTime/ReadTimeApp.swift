@@ -9,6 +9,9 @@ import PhotosUI
 import GoogleMobileAds
 import UserMessagingPlatform
 import AppTrackingTransparency
+import WidgetKit
+import UniformTypeIdentifiers
+import CloudKit
 
 @main
 struct ReadTimeApp: App {
@@ -28,6 +31,14 @@ struct ReadTimeApp: App {
     var body: some Scene {
         WindowGroup {
             ReadTimeTabView()
+                .task {
+                    #if DEBUG
+                    // Screenshot runs start from a known library instead of the welcome screen.
+                    if UserDefaults.standard.bool(forKey: "demoContent"), store.needsOnboarding {
+                        store.finishOnboarding(withDemoContent: true)
+                    }
+                    #endif
+                }
                 .environmentObject(store)
                 .environmentObject(purchases)
                 .tint(.readTimePurple)
@@ -58,78 +69,20 @@ struct ReadTimeApp: App {
     }
 }
 
+#if DEBUG
+/// Opens a chosen screen straight away, for capturing App Store screenshots in every language:
+/// `simctl launch <device> com.fatties.readtime -screen stats -disableAds YES`.
+enum ScreenshotMode {
+    static var screen: String? { UserDefaults.standard.string(forKey: "screen") }
+}
+#endif
+
 // MARK: - Models
 
-enum BookStatus: String, CaseIterable, Identifiable, Codable {
-    case reading = "Reading"
-    case wantToRead = "Want to Read"
-    case finished = "Finished"
-
-    var id: String { rawValue }
-
-    var title: LocalizedStringKey {
-        switch self {
-        case .reading: "Reading"
-        case .wantToRead: "Want to Read"
-        case .finished: "Finished"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .reading: .readTimePurple
-        case .wantToRead: .readTimeAmber
-        case .finished: .readTimeGreen
-        }
-    }
-}
-
-struct Book: Identifiable, Hashable, Codable {
-    let id: UUID
-    var title: String
-    var author: String
-    var genre: String
-    var totalPages: Int
-    var currentPage: Int
-    var status: BookStatus
-    var coverName: String?
-    /// Cover found through online book search; cached on the device by `CoverCache`.
-    var coverURL: String?
-    /// Marks the sample library so it can be cleared without touching the user's own books.
-    var isDemo: Bool?
-
-    var progress: Double {
-        guard totalPages > 0 else { return 0 }
-        return min(Double(currentPage) / Double(totalPages), 1)
-    }
-}
-
-struct ReadingActivity: Identifiable, Codable {
-    var id = UUID()
-    let date: Date
-    let minutes: Int
-    var bookTitle: String
-    var coverName: String?
-    var coverURL: String?
-    var isDemo: Bool?
-    /// Pages moved forward in the session; nil for sessions saved before this was tracked.
-    var pagesRead: Int?
-
-    var label: String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return String(localized: "Today") }
-        if calendar.isDateInYesterday(date) { return String(localized: "Yesterday") }
-        return date.formatted(.dateTime.weekday(.abbreviated).day())
-    }
-}
-
-struct JournalEntry: Identifiable, Codable {
-    var id = UUID()
-    var date: Date
-    /// Empty when the entry isn't about a particular book.
-    var bookTitle: String
-    var text: String
-    var isDemo: Bool?
+/// Represents a saved reading session state for app restoration.
+struct ActiveSessionState: Codable {
+    let bookID: UUID
+    let startedAt: Date
 }
 
 /// The sample library shown on first launch, and loaded or cleared from Settings.
@@ -190,6 +143,10 @@ final class ReadingStore: ObservableObject {
     @Published var reminderEnabled = false
     @Published var reminderTime = Calendar.current.date(from: DateComponents(hour: 20, minute: 0)) ?? .now
     @Published var selectedBookID: UUID?
+    /// The ID of the book currently being read (session in progress).
+    @Published var activeSessionBookID: UUID?
+    /// The timestamp when the current reading session started.
+    @Published var activeSessionStartedAt: Date?
 
     /// True until the user picks demo content or a fresh start on first launch.
     @Published private(set) var needsOnboarding = false
@@ -208,6 +165,12 @@ final class ReadingStore: ObservableObject {
         } else {
             needsOnboarding = true
         }
+        // Restore active session if one was in progress
+        if let sessionData = UserDefaults.standard.data(forKey: "activeSession"),
+           let session = try? JSONDecoder().decode(ActiveSessionState.self, from: sessionData) {
+            activeSessionBookID = session.bookID
+            activeSessionStartedAt = session.startedAt
+        }
         autosave = objectWillChange
             .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in self?.save() }
@@ -217,6 +180,28 @@ final class ReadingStore: ObservableObject {
         // Nothing is written until onboarding finishes, so quitting halfway shows it again next launch.
         guard !needsOnboarding else { return }
         LocalStore.save(snapshot)
+        WidgetCenter.shared.reloadAllTimelines()
+        // Save active session state
+        if let bookID = activeSessionBookID, let startedAt = activeSessionStartedAt {
+            let session = ActiveSessionState(bookID: bookID, startedAt: startedAt)
+            if let encoded = try? JSONEncoder().encode(session) {
+                UserDefaults.standard.set(encoded, forKey: "activeSession")
+            }
+        } else {
+            UserDefaults.standard.removeObject(forKey: "activeSession")
+        }
+    }
+
+    func startSession(for bookID: UUID) {
+        activeSessionBookID = bookID
+        activeSessionStartedAt = Date()
+        save()
+    }
+
+    func clearSession() {
+        activeSessionBookID = nil
+        activeSessionStartedAt = nil
+        UserDefaults.standard.removeObject(forKey: "activeSession")
     }
 
     func finishOnboarding(withDemoContent: Bool) {
@@ -362,6 +347,61 @@ final class ReadingStore: ObservableObject {
         books.first(where: { $0.id == id })
     }
 
+    // MARK: Stats
+
+    func activities(in interval: DateInterval) -> [ReadingActivity] {
+        activities.filter { $0.date >= interval.start && $0.date < interval.end }
+    }
+
+    func booksFinished(in interval: DateInterval) -> Int {
+        books.filter { book in
+            guard let finishedAt = book.finishedAt else { return false }
+            return finishedAt >= interval.start && finishedAt < interval.end
+        }.count
+    }
+
+    /// The book read longest on a day, for the calendar cover.
+    func topActivity(on day: Date) -> ReadingActivity? {
+        let sessions = activities.filter { Calendar.current.isDate($0.date, inSameDayAs: day) }
+        let minutesByTitle = Dictionary(grouping: sessions, by: \.bookTitle).mapValues { $0.reduce(0) { $0 + $1.minutes } }
+        guard let title = minutesByTitle.max(by: { $0.value < $1.value })?.key else { return nil }
+        return sessions.first { $0.bookTitle == title }
+    }
+
+    /// Most consecutive days with at least one reading session.
+    var longestStreak: Int {
+        let calendar = Calendar.current
+        let days = Set(activities.filter { $0.minutes > 0 }.map { calendar.startOfDay(for: $0.date) }).sorted()
+        var best = 0, run = 0
+        var previous: Date?
+        for day in days {
+            if let previous, calendar.dateComponents([.day], from: previous, to: day).day == 1 {
+                run += 1
+            } else {
+                run = 1
+            }
+            best = max(best, run)
+            previous = day
+        }
+        return best
+    }
+
+    var pagesPerHour: Int? {
+        readingSpeed.map { Int(($0.pagesPerMinute * 60).rounded()) }
+    }
+
+    var averageRating: Double? {
+        let ratings = books.compactMap { $0.status == .finished ? $0.rating : nil }
+        guard !ratings.isEmpty else { return nil }
+        return Double(ratings.reduce(0, +)) / Double(ratings.count)
+    }
+
+    var averageFinishedLength: Int? {
+        let finished = books.filter { $0.status == .finished }
+        guard !finished.isEmpty else { return nil }
+        return finished.reduce(0) { $0 + $1.totalPages } / finished.count
+    }
+
     var snapshot: ReadingSnapshot {
         ReadingSnapshot(
             books: books,
@@ -387,6 +427,22 @@ final class ReadingStore: ObservableObject {
         selectedBookID = nil
     }
 
+    /// Adds books that aren't already in the library (same title and author). Returns how many were added.
+    @discardableResult
+    func importBooks(_ imported: [Book]) -> Int {
+        func key(_ book: Book) -> String {
+            "\(book.title.lowercased().trimmingCharacters(in: .whitespaces))|\(book.author.lowercased().trimmingCharacters(in: .whitespaces))"
+        }
+        var existing = Set(books.map(key))
+        var added = 0
+        for book in imported where !existing.contains(key(book)) {
+            books.append(book)
+            existing.insert(key(book))
+            added += 1
+        }
+        return added
+    }
+
     /// Adds a new entry or replaces the existing one with the same id, keeping newest first.
     func saveJournalEntry(_ entry: JournalEntry) {
         if let index = journalEntries.firstIndex(where: { $0.id == entry.id }) {
@@ -402,6 +458,8 @@ final class ReadingStore: ObservableObject {
     }
 
     func addBook(_ book: Book) {
+        var book = book
+        if book.status == .finished { book.finishedAt = book.finishedAt ?? .now }
         books.insert(book, at: 0)
     }
 
@@ -410,6 +468,13 @@ final class ReadingStore: ObservableObject {
     func updateBook(_ book: Book) {
         guard let index = books.firstIndex(where: { $0.id == book.id }) else { return }
         let oldTitle = books[index].title
+        var book = book
+        if book.status == .finished {
+            book.finishedAt = book.finishedAt ?? .now
+        } else {
+            book.finishedAt = nil
+            book.rating = nil
+        }
         books[index] = book
         for i in activities.indices where activities[i].bookTitle == oldTitle {
             activities[i].bookTitle = book.title
@@ -434,6 +499,9 @@ final class ReadingStore: ObservableObject {
         let previousPage = books[index].currentPage
         books[index].currentPage = min(page, books[index].totalPages)
         books[index].status = books[index].currentPage >= books[index].totalPages ? .finished : .reading
+        if books[index].status == .finished, books[index].finishedAt == nil {
+            books[index].finishedAt = .now
+        }
 
         let completedBook = books[index]
         activities.insert(
@@ -462,35 +530,44 @@ final class ReadingStore: ObservableObject {
 
 struct ReadTimeTabView: View {
     @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject private var purchases: PurchaseManager
+    @State private var showingPaywall = false
     @State private var showingBookPicker = false
     @State private var showingSession = false
+    @State private var selectedTab = 0
+    @State private var showingJournal = false
 
     private var onboardingBinding: Binding<Bool> {
         Binding(get: { store.needsOnboarding }, set: { _ in })
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack {
-                HomeView(showingBookPicker: $showingBookPicker)
+                HomeView(showingBookPicker: $showingBookPicker, showingSession: $showingSession, showingJournal: $showingJournal)
             }
             .tabItem { Label("Home", systemImage: "house") }
+            .tag(0)
 
             NavigationStack {
                 GoalsView()
             }
             .tabItem { Label("Goals", systemImage: "target") }
+            .tag(1)
 
             NavigationStack {
                 LibraryView()
             }
             .tabItem { Label("Library", systemImage: "books.vertical") }
+            .tag(2)
 
             NavigationStack {
                 StatsView()
             }
             .tabItem { Label("Stats", systemImage: "chart.bar.xaxis") }
+            .tag(3)
         }
+        .task { openScreenshotScreen() }
         .sheet(isPresented: $showingBookPicker) {
             BookPickerView { book in
                 store.selectedBookID = book.id
@@ -503,12 +580,38 @@ struct ReadTimeTabView: View {
             OnboardingView()
                 .environmentObject(store)
         }
+        // Offer Premium once, right after onboarding.
+        .onChange(of: store.needsOnboarding) { needsOnboarding in
+            guard !needsOnboarding, !purchases.isPremium else { return }
+            Task {
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                showingPaywall = true
+            }
+        }
+        .fullScreenCover(isPresented: $showingPaywall) {
+            PremiumPaywallView()
+                .environmentObject(purchases)
+        }
         .fullScreenCover(isPresented: $showingSession) {
             if let book = store.activeBook {
                 ReadingSessionView(bookID: book.id)
                     .environmentObject(store)
             }
         }
+    }
+
+    private func openScreenshotScreen() {
+        #if DEBUG
+        switch ScreenshotMode.screen {
+        case "goals": selectedTab = 1
+        case "library": selectedTab = 2
+        case "stats", "trends": selectedTab = 3
+        case "journal": showingJournal = true
+        case "session": showingSession = true
+        case "premium": showingPaywall = true
+        default: break
+        }
+        #endif
     }
 }
 
@@ -518,6 +621,8 @@ struct HomeView: View {
     @EnvironmentObject private var store: ReadingStore
     @EnvironmentObject private var purchases: PurchaseManager
     @Binding var showingBookPicker: Bool
+    @Binding var showingSession: Bool
+    @Binding var showingJournal: Bool
     @State private var showingSettings = false
 
     var body: some View {
@@ -555,6 +660,7 @@ struct HomeView: View {
                     JournalPreview(entry: store.journalEntries.first, count: store.journalEntries.count)
                 }
                 .buttonStyle(.plain)
+                .navigationDestination(isPresented: $showingJournal) { JournalView() }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
@@ -578,18 +684,59 @@ struct HomeView: View {
         .safeAreaInset(edge: .bottom) {
             HStack {
                 Spacer()
-                Button {
-                    showingBookPicker = true
-                } label: {
-                    Label("Read Now", systemImage: "play.fill")
-                        .font(.headline)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 15)
+                if let activeBook = store.activeBook, store.activeSessionBookID == activeBook.id {
+                    Button {
+                        showingSession = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Resume")
+                                    .font(.caption.weight(.medium))
+                                Text(activeBook.title)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                Text("Page \(activeBook.currentPage) of \(activeBook.totalPages)")
+                                    .font(.caption2)
+                                    .opacity(0.7)
+                            }
+                            Spacer()
+                            Text("\(Int(activeBook.progress * 100))%")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background {
+                            ZStack(alignment: .leading) {
+                                Rectangle()
+                                    .fill(Color.readTimePurple.opacity(0.55))
+                                GeometryReader { proxy in
+                                    Rectangle()
+                                        .fill(Color.readTimePurple)
+                                        .frame(width: proxy.size.width * activeBook.progress)
+                                }
+                            }
+                        }
+                        .clipShape(Capsule())
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+                    .animation(.snappy, value: activeBook.progress)
+                } else {
+                    Button {
+                        showingBookPicker = true
+                    } label: {
+                        Label("Read Now", systemImage: "play.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 15)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
+                    .tint(.readTimePurple)
+                    .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
                 }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .tint(.readTimePurple)
-                .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
@@ -1241,30 +1388,7 @@ enum ReminderManager {
 
 // MARK: - Goal creation
 
-struct ReadingRoutine: Codable, Equatable {
-    /// `Calendar` weekday numbers: 1 is Sunday, 2 is Monday, and so on.
-    var weekdays: [Int]
-    var startDate: Date
-    var weeks: Int
-
-    /// The first day after the routine (exclusive end).
-    var endDate: Date {
-        let calendar = Calendar.current
-        return calendar.date(byAdding: .day, value: weeks * 7, to: calendar.startOfDay(for: startDate)) ?? startDate
-    }
-
-    var lastDay: Date {
-        Calendar.current.date(byAdding: .day, value: -1, to: endDate) ?? endDate
-    }
-
-    func includes(_ day: Date) -> Bool {
-        let calendar = Calendar.current
-        let date = calendar.startOfDay(for: day)
-        return date >= calendar.startOfDay(for: startDate)
-            && date < endDate
-            && weekdays.contains(calendar.component(.weekday, from: date))
-    }
-
+extension ReadingRoutine {
     var daysLabel: String {
         GoalFormat.daysLabel(Set(weekdays))
     }
@@ -1942,6 +2066,7 @@ struct AddBookView: View {
     @State private var pageCount: Int
     @State private var currentPage: Int
     @State private var status: BookStatus
+    @State private var rating: Int
     @State private var coverName: String?
     @State private var coverURL: String?
     @State private var confirmingDelete = false
@@ -1963,6 +2088,7 @@ struct AddBookView: View {
         _pageCount = State(initialValue: editing?.totalPages ?? 250)
         _currentPage = State(initialValue: editing?.currentPage ?? 0)
         _status = State(initialValue: editing?.status ?? .wantToRead)
+        _rating = State(initialValue: editing?.rating ?? 0)
         _coverName = State(initialValue: editing?.coverName)
         _coverURL = State(initialValue: editing?.coverURL)
     }
@@ -1981,6 +2107,7 @@ struct AddBookView: View {
         book.totalPages = pageCount
         book.currentPage = min(currentPage, pageCount)
         book.status = status
+        book.rating = status == .finished && rating > 0 ? rating : nil
         book.coverName = coverName
         book.coverURL = coverURL
         if editing == nil {
@@ -2083,6 +2210,9 @@ struct AddBookView: View {
                         ForEach(BookStatus.allCases) { status in
                             Text(status.title).tag(status)
                         }
+                    }
+                    if status == .finished {
+                        StarRatingPicker(rating: $rating)
                     }
                 }
 
@@ -2360,6 +2490,7 @@ struct StatsView: View {
     @EnvironmentObject private var store: ReadingStore
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
                 AdBanner()
@@ -2369,31 +2500,32 @@ struct StatsView: View {
                     StatTile(value: "\(store.finishedBooks)", label: "books completed", systemImage: "checkmark.seal.fill")
                 }
 
-                VStack(alignment: .leading, spacing: 14) {
-                    Label("Weekly reading", systemImage: "chart.bar.fill")
-                        .font(.headline)
-                    Chart(store.currentWeekDays, id: \.self) { day in
-                        BarMark(
-                            x: .value("Day", day.formatted(.dateTime.weekday(.abbreviated))),
-                            y: .value("Minutes", store.minutesRead(on: day))
-                        )
-                        .foregroundStyle(Color.readTimePurple.gradient)
-                        .cornerRadius(5)
-                    }
-                    .chartYAxisLabel("Minutes")
-                    .frame(height: 190)
-                }
-                .padding(16)
-                .readTimeCard()
+                ReadingCalendarCard()
+
+                TrendsSection()
+                    .id("trends")
+
+                Text("All Time")
+                    .font(.title2.bold())
+                    .padding(.top, 8)
+
+                InsightsCard()
 
                 favouriteGenresCard
-
-                readingSpeedCard
             }
             .padding(20)
         }
         .background(Color.readTimeBackground.ignoresSafeArea())
         .navigationTitle("Stats")
+        .task {
+            #if DEBUG
+            if ScreenshotMode.screen == "trends" {
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                proxy.scrollTo("trends", anchor: .top)
+            }
+            #endif
+        }
+        }
     }
 
     private var favouriteGenresCard: some View {
@@ -2435,27 +2567,388 @@ struct StatsView: View {
         .padding(16)
         .readTimeCard()
     }
+}
 
-    private var readingSpeedCard: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Label("Average reading speed", systemImage: "gauge.with.dots.needle.50percent")
-                .font(.headline)
-            if let speed = store.readingSpeed {
-                Text("\(speed.pagesPerMinute.formatted(.number.precision(.fractionLength(1)))) pages/min")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(Color.readTimePurple)
-                Text("Based on your last \(speed.sessions) sessions")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Finish a reading session and save your page to see your reading speed.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+struct StarRatingPicker: View {
+    @Binding var rating: Int
+
+    var body: some View {
+        HStack {
+            Text("Rating")
+            Spacer()
+            HStack(spacing: 6) {
+                ForEach(1...5, id: \.self) { star in
+                    Button {
+                        rating = rating == star ? 0 : star
+                    } label: {
+                        Image(systemName: star <= rating ? "star.fill" : "star")
+                            .foregroundStyle(star <= rating ? Color.yellow : Color.secondary)
+                            .font(.title3)
+                    }
+                    // Plain style so each star gets its own tap inside a Form row.
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("\(star) stars"))
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// A month grid where each day shows the cover of the book read most that day.
+struct ReadingCalendarCard: View {
+    @EnvironmentObject private var store: ReadingStore
+    @State private var monthOffset = 0
+
+    private var calendar: Calendar {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
+        return calendar
+    }
+
+    private var month: Date {
+        let start = calendar.dateInterval(of: .month, for: .now)?.start ?? .now
+        return calendar.date(byAdding: .month, value: -monthOffset, to: start) ?? start
+    }
+
+    private var weekdaySymbols: [String] {
+        let symbols = calendar.veryShortStandaloneWeekdaySymbols
+        let shift = calendar.firstWeekday - 1
+        return Array(symbols[shift...] + symbols[..<shift])
+    }
+
+    /// Nil entries pad the first week so day 1 lands under its weekday.
+    private var days: [Date?] {
+        guard let range = calendar.range(of: .day, in: .month, for: month) else { return [] }
+        let leading = (calendar.component(.weekday, from: month) - calendar.firstWeekday + 7) % 7
+        let dates = range.compactMap { calendar.date(byAdding: .day, value: $0 - 1, to: month) }
+        return Array(repeating: nil, count: leading) + dates
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(month.formatted(.dateTime.month(.wide).year()))
+                    .font(.headline)
+                Spacer()
+                Button { monthOffset += 1 } label: { Image(systemName: "chevron.left") }
+                    .accessibilityLabel("Previous month")
+                Button { monthOffset -= 1 } label: { Image(systemName: "chevron.right") }
+                    .disabled(monthOffset == 0)
+                    .accessibilityLabel("Next month")
+                    .padding(.leading, 12)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.readTimePurple)
+
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 5), count: 7)
+            LazyVGrid(columns: columns, spacing: 5) {
+                ForEach(weekdaySymbols.indices, id: \.self) { index in
+                    Text(weekdaySymbols[index])
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(days.indices, id: \.self) { index in
+                    if let day = days[index] {
+                        dayCell(day)
+                    } else {
+                        Color.clear.aspectRatio(2 / 3, contentMode: .fit)
+                    }
+                }
+            }
+        }
         .padding(16)
         .readTimeCard()
+    }
+
+    private func dayCell(_ day: Date) -> some View {
+        let minutes = store.minutesRead(on: day)
+        let top = minutes > 0 ? store.topActivity(on: day) : nil
+        let isToday = calendar.isDateInToday(day)
+        return RoundedRectangle(cornerRadius: 6)
+            .fill(minutes > 0 ? Color.readTimePurple.opacity(0.35) : Color.secondary.opacity(0.08))
+            .aspectRatio(2 / 3, contentMode: .fit)
+            .overlay {
+                if let top, top.coverName != nil || top.coverURL != nil {
+                    CoverImage(coverName: top.coverName, coverURL: top.coverURL)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                Text(day.formatted(.dateTime.day()))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(top == nil ? Color.secondary : Color.white)
+                    .shadow(color: top == nil ? .clear : .black.opacity(0.7), radius: 2)
+                    .padding(3)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                if isToday {
+                    RoundedRectangle(cornerRadius: 6).stroke(Color.readTimePurple, lineWidth: 2)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("\(day.formatted(date: .long, time: .omitted)), \(minutes) min"))
+    }
+}
+
+enum TrendPeriod: String, CaseIterable, Identifiable {
+    case week, month, year
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .week: "7 Days"
+        case .month: "30 Days"
+        case .year: "12 Months"
+        }
+    }
+
+    /// `offset` 0 is the period ending today; 1 is the one before it, and so on.
+    func interval(offset: Int, calendar: Calendar = .current) -> DateInterval {
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: .now)) ?? .now
+        switch self {
+        case .week, .month:
+            let length = self == .week ? 7 : 30
+            let end = calendar.date(byAdding: .day, value: -length * offset, to: tomorrow) ?? tomorrow
+            let start = calendar.date(byAdding: .day, value: -length, to: end) ?? end
+            return DateInterval(start: start, end: end)
+        case .year:
+            let thisMonth = calendar.dateInterval(of: .month, for: .now)?.start ?? .now
+            let nextMonth = calendar.date(byAdding: .month, value: 1, to: thisMonth) ?? tomorrow
+            let end = calendar.date(byAdding: .month, value: -12 * offset, to: nextMonth) ?? nextMonth
+            let start = calendar.date(byAdding: .month, value: -12, to: end) ?? end
+            return DateInterval(start: start, end: end)
+        }
+    }
+
+    var bucketUnit: Calendar.Component { self == .year ? .month : .day }
+
+    func buckets(in interval: DateInterval, calendar: Calendar = .current) -> [Date] {
+        var dates: [Date] = []
+        var date = interval.start
+        while date < interval.end {
+            dates.append(date)
+            guard let next = calendar.date(byAdding: bucketUnit, value: 1, to: date) else { break }
+            date = next
+        }
+        return dates
+    }
+
+    func rangeLabel(for interval: DateInterval) -> String {
+        let last = interval.end.addingTimeInterval(-1)
+        if self == .year {
+            return "\(interval.start.formatted(.dateTime.month(.abbreviated).year())) – \(last.formatted(.dateTime.month(.abbreviated).year()))"
+        }
+        return "\(interval.start.formatted(.dateTime.day().month(.abbreviated))) – \(last.formatted(.dateTime.day().month(.abbreviated)))"
+    }
+}
+
+/// Pages, time and finished books for a chosen period, compared with the period before it.
+struct TrendsSection: View {
+    @EnvironmentObject private var store: ReadingStore
+    @State private var period = TrendPeriod.week
+    @State private var offset = 0
+
+    var body: some View {
+        let current = period.interval(offset: offset)
+        let previous = period.interval(offset: offset + 1)
+        let buckets = period.buckets(in: current)
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Trends")
+                    .font(.title2.bold())
+                Spacer()
+                Menu {
+                    Picker("Period", selection: $period) {
+                        ForEach(TrendPeriod.allCases) { Text($0.title).tag($0) }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(period.title)
+                        Image(systemName: "chevron.down").font(.caption.weight(.bold))
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.readTimeCardBackground, in: Capsule())
+                }
+            }
+            .onChange(of: period) { _ in offset = 0 }
+
+            HStack {
+                Text(period.rangeLabel(for: current))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button { offset += 1 } label: { Image(systemName: "chevron.left") }
+                    .accessibilityLabel("Previous period")
+                Button { offset -= 1 } label: { Image(systemName: "chevron.right") }
+                    .disabled(offset == 0)
+                    .accessibilityLabel("Next period")
+                    .padding(.leading, 12)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.readTimePurple)
+
+            TrendCard(
+                title: "Pages read",
+                systemImage: "doc.text.fill",
+                color: .blue,
+                current: pages(in: current),
+                previous: pages(in: previous),
+                format: { Text("\($0) pages") },
+                series: buckets.map { ($0, pages(in: bucket($0))) },
+                unit: period.bucketUnit
+            )
+            TrendCard(
+                title: "Time read",
+                systemImage: "clock.fill",
+                color: .readTimePurple,
+                current: minutes(in: current),
+                previous: minutes(in: previous),
+                format: { Text(Self.duration($0)) },
+                series: buckets.map { ($0, minutes(in: bucket($0))) },
+                unit: period.bucketUnit
+            )
+            TrendCard(
+                title: "Books finished",
+                systemImage: "checkmark.seal.fill",
+                color: .readTimeGreen,
+                current: store.booksFinished(in: current),
+                previous: store.booksFinished(in: previous),
+                format: { Text("\($0) books") },
+                series: buckets.map { ($0, store.booksFinished(in: bucket($0))) },
+                unit: period.bucketUnit
+            )
+        }
+    }
+
+    private func bucket(_ start: Date) -> DateInterval {
+        let end = Calendar.current.date(byAdding: period.bucketUnit, value: 1, to: start) ?? start
+        return DateInterval(start: start, end: end)
+    }
+
+    private func pages(in interval: DateInterval) -> Int {
+        store.activities(in: interval).reduce(0) { $0 + ($1.pagesRead ?? 0) }
+    }
+
+    private func minutes(in interval: DateInterval) -> Int {
+        store.activities(in: interval).reduce(0) { $0 + $1.minutes }
+    }
+
+    static func duration(_ minutes: Int) -> String {
+        Duration.seconds(minutes * 60).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
+    }
+}
+
+struct TrendCard: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+    let color: Color
+    let current: Int
+    let previous: Int
+    let format: (Int) -> Text
+    let series: [(date: Date, value: Int)]
+    let unit: Calendar.Component
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.snappy) { expanded.toggle() }
+            } label: {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label(title, systemImage: systemImage)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        format(current)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(color)
+                        delta
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                        .padding(.top, 4)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                Chart(series, id: \.date) { point in
+                    BarMark(
+                        x: .value("Date", point.date, unit: unit),
+                        y: .value("Value", point.value)
+                    )
+                    .foregroundStyle(color.gradient)
+                    .cornerRadius(3)
+                }
+                .frame(height: 150)
+                .transition(.opacity)
+            }
+        }
+        .padding(16)
+        .readTimeCard()
+    }
+
+    @ViewBuilder private var delta: some View {
+        let change = current - previous
+        HStack(spacing: 4) {
+            Image(systemName: change > 0 ? "arrow.up.right" : change < 0 ? "arrow.down.right" : "equal")
+            format(abs(change))
+            Text("vs. previous period")
+                .foregroundStyle(.secondary)
+        }
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(change > 0 ? Color.readTimeGreen : change < 0 ? Color.red : Color.secondary)
+    }
+}
+
+struct InsightsCard: View {
+    @EnvironmentObject private var store: ReadingStore
+
+    var body: some View {
+        VStack(spacing: 0) {
+            row("Top genre", systemImage: "books.vertical.fill", color: .orange,
+                value: store.favouriteGenres.shares.first.map { Text($0.genre) })
+            Divider().padding(.leading, 52)
+            row("Longest streak", systemImage: "flame.fill", color: .red,
+                value: store.longestStreak > 0 ? Text("\(store.longestStreak) days") : nil)
+            Divider().padding(.leading, 52)
+            row("Average reading speed", systemImage: "gauge.with.dots.needle.50percent", color: .teal,
+                value: store.pagesPerHour.map { Text("\($0) pages/hour") })
+            Divider().padding(.leading, 52)
+            row("Average rating", systemImage: "star.fill", color: .yellow,
+                value: store.averageRating.map { Text("\($0.formatted(.number.precision(.fractionLength(1)))) stars") })
+            Divider().padding(.leading, 52)
+            row("Average book length", systemImage: "book.closed.fill", color: .gray,
+                value: store.averageFinishedLength.map { Text("\($0) pages") })
+        }
+        .padding(.vertical, 4)
+        .readTimeCard()
+    }
+
+    private func row(_ title: LocalizedStringKey, systemImage: String, color: Color, value: Text?) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundStyle(color)
+                .frame(width: 28)
+            Text(title)
+            Spacer()
+            (value ?? Text(verbatim: "—"))
+                .fontWeight(.semibold)
+                .foregroundStyle(value == nil ? Color.secondary : color)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 13)
     }
 }
 
@@ -2497,10 +2990,9 @@ struct BookPickerView: View {
                 LazyVStack(spacing: 12) {
                     ForEach(readableBooks) { book in
                         Button {
+                            store.startSession(for: book.id)
+                            onSelect(book)
                             dismiss()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                onSelect(book)
-                            }
                         } label: {
                             HStack(spacing: 14) {
                                 BookCover(book: book, width: 54, height: 81)
@@ -2630,6 +3122,14 @@ struct ReadingSessionView: View {
                 .environmentObject(store)
                 .presentationDetents([.large])
             }
+            .onAppear {
+                // Use the stored start time if resuming a session
+                if let sessionStart = store.activeSessionStartedAt, store.activeSessionBookID == bookID {
+                    startedAt = sessionStart
+                } else {
+                    startedAt = Date()
+                }
+            }
         }
     }
 
@@ -2725,6 +3225,7 @@ struct FinishSessionView: View {
 
                         Button {
                             store.completeSession(for: bookID, seconds: seconds, page: currentPage, journal: journal)
+                            store.clearSession()
                             // The session is saved first; the ad (if one is ready) plays before the summary.
                             AdManager.shared.showInterstitial {
                                 withAnimation { showingSummary = true }
@@ -2889,47 +3390,6 @@ struct GoalRingCard: View {
 
 // MARK: - Settings
 
-struct ReadingSnapshot: Codable {
-    var books: [Book]
-    var activities: [ReadingActivity]
-    var journalEntries: [JournalEntry]
-    var dailyGoal: Int
-    var yearlyBookGoal: Int
-    var routine: ReadingRoutine?
-    // Device-level preferences, only applied when loading this device's own data.
-    var reminderEnabled: Bool?
-    var reminderTime: Date?
-    var selectedBookID: UUID?
-    var savedAt: Date
-}
-
-/// Saves the reading data as JSON in Application Support so it survives relaunches.
-enum LocalStore {
-    private static var fileURL: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("ReadTime.json")
-    }
-
-    static func load() -> ReadingSnapshot? {
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
-        do {
-            return try JSONDecoder().decode(ReadingSnapshot.self, from: data)
-        } catch {
-            print("ReadTime: couldn't read saved data: \(error)")
-            return nil
-        }
-    }
-
-    static func save(_ snapshot: ReadingSnapshot) {
-        do {
-            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(snapshot).write(to: fileURL, options: .atomic)
-        } catch {
-            print("ReadTime: couldn't save data: \(error)")
-        }
-    }
-}
-
 /// Stores a single backup of the reading data in iCloud key-value storage, which
 /// syncs across the user's devices signed in to the same Apple ID (1 MB limit).
 enum CloudBackup {
@@ -3051,6 +3511,47 @@ final class PurchaseManager: ObservableObject {
         await refreshEntitlements()
     }
 
+    /// Length of the free trial, when the product is a subscription with one.
+    var freeTrialDescription: String? {
+        guard let offer = premiumProduct?.subscription?.introductoryOffer, offer.paymentMode == .freeTrial else { return nil }
+        return Self.describe(offer.period)
+    }
+
+    func isEligibleForFreeTrial() async -> Bool {
+        guard freeTrialDescription != nil, let subscription = premiumProduct?.subscription else { return false }
+        return await subscription.isEligibleForIntroOffer
+    }
+
+    /// "29,000 ₫/year" for subscriptions, or the plain price for a one-time purchase.
+    var priceDescription: String? {
+        guard let product = premiumProduct else { return nil }
+        guard let period = product.subscription?.subscriptionPeriod else { return product.displayPrice }
+        return "\(product.displayPrice)/\(Self.describe(period, unitOnly: period.value == 1))"
+    }
+
+    private static func describe(_ period: Product.SubscriptionPeriod, unitOnly: Bool = false) -> String {
+        let components: DateComponents
+        switch period.unit {
+        case .day: components = DateComponents(day: period.value)
+        case .week: components = DateComponents(day: period.value * 7)
+        case .month: components = DateComponents(month: period.value)
+        case .year: components = DateComponents(year: period.value)
+        @unknown default: components = DateComponents(day: period.value)
+        }
+        if unitOnly {
+            switch period.unit {
+            case .week: return String(localized: "week")
+            case .month: return String(localized: "month")
+            case .year: return String(localized: "year")
+            default: return String(localized: "day")
+            }
+        }
+        let formatter = DateComponentsFormatter()
+        formatter.unitsStyle = .full
+        formatter.maximumUnitCount = 1
+        return formatter.string(from: components) ?? ""
+    }
+
     func refreshEntitlements() async {
         var owned = false
         for await result in StoreKit.Transaction.currentEntitlements {
@@ -3108,7 +3609,19 @@ final class PurchaseManager: ObservableObject {
 
 enum AppInfo {
     // TODO: Replace with the real support address.
-    static let supportEmail = "support@readtime.app"
+    static let supportEmail = "support@tunnaduong.com"
+    // TODO: Set the numeric App Store ID once the app is live, for share links and "Write a Review".
+    static let appStoreID: String? = nil
+    /// Apple's standard licence agreement, which applies unless the app ships its own terms.
+    static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+
+    static var appStoreURL: URL? {
+        appStoreID.flatMap { URL(string: "https://apps.apple.com/app/id\($0)") }
+    }
+
+    static var writeReviewURL: URL? {
+        appStoreID.flatMap { URL(string: "https://apps.apple.com/app/id\($0)?action=write-review") }
+    }
 
     static var version: String {
         let info = Bundle.main.infoDictionary
@@ -3140,6 +3653,7 @@ struct SettingsView: View {
     @State private var confirmingRestore = false
     @State private var backupMessage: String?
     @State private var confirmingClearDemo = false
+    @State private var showingPaywall = false
 
     /// The language ReadTime is currently shown in, written in that language.
     private var currentLanguage: String {
@@ -3183,7 +3697,38 @@ struct SettingsView: View {
                     Text("ReadTime follows the language chosen for it in the Settings app.")
                 }
 
+                Section {
+                    NavigationLink {
+                        AppIconPickerView()
+                    } label: {
+                        Label("App Icon", systemImage: "square.grid.2x2")
+                    }
+                    NavigationLink {
+                        ImportExportView()
+                            .environmentObject(store)
+                    } label: {
+                        Label("Import & Export", systemImage: "arrow.up.arrow.down")
+                    }
+                }
+
                 demoSection
+
+                Section {
+                    NavigationLink {
+                        RoadmapView()
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Roadmap")
+                                Text("Suggest, vote on, and discuss the features you'd like to see next!")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "map")
+                        }
+                    }
+                }
 
                 Section("Support") {
                     NavigationLink {
@@ -3192,11 +3737,43 @@ struct SettingsView: View {
                         Label("About", systemImage: "info.circle")
                     }
                     Button {
-                        if let url = AppInfo.contactURL { openURL(url) }
+                        if let url = AppInfo.writeReviewURL {
+                            openURL(url)
+                        } else if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                            SKStoreReviewController.requestReview(in: scene)
+                        }
                     } label: {
-                        Label("Contact Us", systemImage: "envelope")
+                        Label("Leave a Review", systemImage: "star")
                             .foregroundStyle(Color.readTimeText)
                     }
+                    Button {
+                        if let url = AppInfo.contactURL { openURL(url) }
+                    } label: {
+                        Label("Send Feedback", systemImage: "envelope")
+                            .foregroundStyle(Color.readTimeText)
+                    }
+                }
+
+                Section {
+                    if let url = AppInfo.appStoreURL {
+                        ShareLink(item: url, message: Text("I'm building a reading habit with ReadTime.")) {
+                            Label("Share ReadTime", systemImage: "square.and.arrow.up")
+                                .foregroundStyle(Color.readTimeText)
+                        }
+                    } else {
+                        ShareLink(item: String(localized: "I'm building a reading habit with ReadTime.")) {
+                            Label("Share ReadTime", systemImage: "square.and.arrow.up")
+                                .foregroundStyle(Color.readTimeText)
+                        }
+                    }
+                    Link(destination: AppInfo.termsURL) {
+                        Label("Terms of Use", systemImage: "doc.text")
+                            .foregroundStyle(Color.readTimeText)
+                    }
+                } footer: {
+                    Text("App version: \(AppInfo.version)")
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 12)
                 }
             }
             .scrollContentBackground(.hidden)
@@ -3221,10 +3798,18 @@ struct SettingsView: View {
             } message: {
                 Text(backupMessage ?? "")
             }
-            .alert("Premium", isPresented: messageBinding(for: $purchases.message)) {
+            // The paywall shows its own alert while it's open.
+            .alert("Premium", isPresented: Binding(
+                get: { purchases.message != nil && !showingPaywall },
+                set: { if !$0 { purchases.message = nil } }
+            )) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(purchases.message ?? "")
+            }
+            .fullScreenCover(isPresented: $showingPaywall) {
+                PremiumPaywallView()
+                    .environmentObject(purchases)
             }
         }
     }
@@ -3273,7 +3858,7 @@ struct SettingsView: View {
                 }
             } else {
                 Button {
-                    Task { await purchases.buyPremium() }
+                    showingPaywall = true
                 } label: {
                     HStack {
                         Label {
@@ -3362,6 +3947,956 @@ struct SettingsView: View {
     }
 }
 
+/// Sends the onboarding answer to the CloudKit public database, once per device.
+/// Only the chosen option and the app version are stored — nothing about the reader.
+enum ReferralReport {
+    private static let sentKey = "onboarding_referral_sent"
+
+    static func send(source: String) async {
+        guard !UserDefaults.standard.bool(forKey: sentKey) else { return }
+        let record = CKRecord(recordType: "ReferralAnswer")
+        record["source"] = source
+        record["appVersion"] = AppInfo.version
+        do {
+            try await CKContainer(identifier: RoadmapStore.containerIdentifier).publicCloudDatabase.save(record)
+            UserDefaults.standard.set(true, forKey: sentKey)
+        } catch {
+            // Not worth interrupting onboarding; the answer stays on the device.
+        }
+    }
+}
+
+// MARK: - Premium paywall
+
+struct PremiumPaywallView: View {
+    @EnvironmentObject private var purchases: PurchaseManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var eligibleForTrial = false
+
+    private struct Benefit: Identifiable {
+        let title: LocalizedStringKey
+        let detail: LocalizedStringKey
+        let systemImage: String
+        var id: String { systemImage }
+    }
+
+    private let benefits = [
+        Benefit(title: "No Ads", detail: "Read without banners, full-screen ads, or ads when you open the app.", systemImage: "eye.slash.fill"),
+        Benefit(title: "Support an Independent Developer", detail: "Your purchase keeps ReadTime growing and improving.", systemImage: "heart.fill"),
+        Benefit(title: "Everything Else Stays Free", detail: "Goals, reading sessions, stats, journal, and iCloud backup are yours either way.", systemImage: "checkmark.seal.fill")
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Close")
+                    .padding(.leading, -10)
+
+                    Text("Why readers go Premium")
+                        .font(.largeTitle.bold())
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+
+                    VStack(alignment: .leading, spacing: 24) {
+                        ForEach(benefits) { benefit in
+                            HStack(alignment: .top, spacing: 16) {
+                                Image(systemName: benefit.systemImage)
+                                    .font(.title3)
+                                    .foregroundStyle(.white)
+                                    .frame(width: 48, height: 48)
+                                    .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(benefit.title)
+                                        .font(.headline)
+                                        .foregroundStyle(.white)
+                                    Text(benefit.detail)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.white.opacity(0.8))
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(24)
+            }
+
+            VStack(spacing: 10) {
+                Button {
+                    Task { await purchases.buyPremium() }
+                } label: {
+                    Group {
+                        if purchases.isWorking {
+                            ProgressView().tint(Color.readTimePurple)
+                        } else if eligibleForTrial, let trial = purchases.freeTrialDescription {
+                            Text("Try \(trial) Free")
+                        } else {
+                            Text("Get Premium")
+                        }
+                    }
+                    .font(.headline)
+                    .foregroundStyle(Color.readTimePurple)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .background(.white, in: Capsule())
+                }
+                .disabled(purchases.isWorking)
+
+                if let price = purchases.priceDescription {
+                    Group {
+                        if eligibleForTrial {
+                            Text("Then \(price). Cancel anytime.")
+                        } else {
+                            Text(price)
+                        }
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.8))
+                }
+
+                Button("Restore Purchases") {
+                    Task { await purchases.restorePurchases() }
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 14)
+            .padding(.bottom, 8)
+        }
+        .background(
+            LinearGradient(
+                colors: [Color(red: 0.36, green: 0.22, blue: 0.72), Color(red: 0.62, green: 0.40, blue: 0.95)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
+        .task {
+            if purchases.premiumProduct == nil { await purchases.load() }
+            eligibleForTrial = await purchases.isEligibleForFreeTrial()
+        }
+        .onChange(of: purchases.isPremium) { isPremium in
+            if isPremium { dismiss() }
+        }
+        .alert("Premium", isPresented: Binding(get: { purchases.message != nil }, set: { if !$0 { purchases.message = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(purchases.message ?? "")
+        }
+    }
+}
+
+// MARK: - Roadmap
+
+/// A feature on the public roadmap, stored in the CloudKit public database.
+///
+/// CloudKit setup (container `iCloud.com.fatties.readtime`, CloudKit Console):
+/// - `FeatureRequest`: title (String), details (String), status (String), listed (Int64, Queryable).
+///   Only records with `listed = 1` appear, so set it after reviewing a suggestion.
+/// - `Vote`: featureName (String, Queryable). One record per user and feature.
+/// Deploy the schema to Production before release.
+struct FeatureRequest: Identifiable, Hashable {
+    enum Status: String, CaseIterable, Identifiable {
+        case inReview, planned, inProgress, completed
+
+        var id: String { rawValue }
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .inReview: "In Review"
+            case .planned: "Planned"
+            case .inProgress: "In Progress"
+            case .completed: "Completed"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .inReview: .blue
+            case .planned: .readTimePurple
+            case .inProgress: .orange
+            case .completed: .readTimeGreen
+            }
+        }
+    }
+
+    let id: String
+    var title: String
+    var details: String
+    var status: Status
+    var votes: Int
+    var hasVoted: Bool
+}
+
+@MainActor
+final class RoadmapStore: ObservableObject {
+    static let containerIdentifier = "iCloud.com.fatties.readtime"
+
+    @Published private(set) var requests: [FeatureRequest] = []
+    @Published private(set) var isLoading = false
+    @Published private(set) var loadFailed = false
+    /// False when there's no iCloud account on the device, which blocks the public database too.
+    @Published private(set) var isSignedIn = true
+    @Published var message: String?
+
+    private let container = CKContainer(identifier: RoadmapStore.containerIdentifier)
+    private var database: CKDatabase { container.publicCloudDatabase }
+    private var userID: CKRecord.ID?
+
+    func load() async {
+        isLoading = true
+        loadFailed = false
+        defer { isLoading = false }
+        isSignedIn = (try? await container.accountStatus()) == .available
+        userID = try? await container.userRecordID()
+        do {
+            // Fetch everything and hide only what's explicitly unlisted, so a record created
+            // without `listed` still shows up.
+            let features = try await fetchAll(CKQuery(recordType: "FeatureRequest", predicate: NSPredicate(value: true)))
+                .filter { ($0["listed"] as? Int64) != 0 }
+            let names = features.map(\.recordID.recordName)
+            let votes = names.isEmpty ? [] : try await fetchAll(CKQuery(recordType: "Vote", predicate: NSPredicate(format: "featureName IN %@", names)))
+
+            var counts: [String: Int] = [:]
+            var mine: Set<String> = []
+            for vote in votes {
+                guard let name = vote["featureName"] as? String else { continue }
+                counts[name, default: 0] += 1
+                if let userID, vote.creatorUserRecordID?.recordName == userID.recordName
+                    || vote.creatorUserRecordID?.recordName == CKCurrentUserDefaultName {
+                    mine.insert(name)
+                }
+            }
+
+            requests = features.map { record in
+                let name = record.recordID.recordName
+                return FeatureRequest(
+                    id: name,
+                    title: record["title"] as? String ?? "",
+                    details: record["details"] as? String ?? "",
+                    status: FeatureRequest.Status(rawValue: record["status"] as? String ?? "") ?? .inReview,
+                    votes: counts[name] ?? 0,
+                    hasVoted: mine.contains(name)
+                )
+            }
+            .sorted { $0.votes == $1.votes ? $0.title < $1.title : $0.votes > $1.votes }
+        } catch let error as CKError where error.code == .unknownItem {
+            // The record types don't exist until the first record is saved.
+            requests = []
+        } catch {
+            loadFailed = true
+        }
+    }
+
+    func toggleVote(for request: FeatureRequest) async {
+        guard let userID else {
+            message = String(localized: "Sign in to iCloud in the Settings app to vote.")
+            return
+        }
+        guard let index = requests.firstIndex(where: { $0.id == request.id }) else { return }
+        let recordID = CKRecord.ID(recordName: "vote-\(request.id)-\(userID.recordName)")
+        let wasVoted = requests[index].hasVoted
+        requests[index].hasVoted.toggle()
+        requests[index].votes += wasVoted ? -1 : 1
+
+        do {
+            if wasVoted {
+                try await database.deleteRecord(withID: recordID)
+            } else {
+                let vote = CKRecord(recordType: "Vote", recordID: recordID)
+                vote["featureName"] = request.id
+                try await database.save(vote)
+            }
+        } catch let error as CKError where error.code == .serverRecordChanged || error.code == .unknownItem {
+            // Already voted (or already removed) on another device; the local state is now correct.
+        } catch {
+            if let index = requests.firstIndex(where: { $0.id == request.id }) {
+                requests[index].hasVoted = wasVoted
+                requests[index].votes += wasVoted ? 1 : -1
+            }
+            message = error.localizedDescription
+        }
+    }
+
+    func suggest(title: String, details: String) async -> Bool {
+        guard userID != nil else {
+            message = String(localized: "Sign in to iCloud in the Settings app to suggest a feature.")
+            return false
+        }
+        let record = CKRecord(recordType: "FeatureRequest")
+        record["title"] = title
+        record["details"] = details
+        record["status"] = FeatureRequest.Status.inReview.rawValue
+        record["listed"] = 0 as Int64
+        do {
+            try await database.save(record)
+            message = String(localized: "Thanks! Your suggestion will appear on the roadmap once it's been reviewed.")
+            return true
+        } catch {
+            message = error.localizedDescription
+            return false
+        }
+    }
+
+    private func fetchAll(_ query: CKQuery) async throws -> [CKRecord] {
+        var records: [CKRecord] = []
+        var (results, cursor) = try await database.records(matching: query)
+        records += results.compactMap { try? $0.1.get() }
+        while let next = cursor {
+            (results, cursor) = try await database.records(continuingMatchFrom: next)
+            records += results.compactMap { try? $0.1.get() }
+        }
+        return records
+    }
+}
+
+struct RoadmapView: View {
+    @StateObject private var roadmap = RoadmapStore()
+    @State private var filter: FeatureRequest.Status?
+    @State private var suggesting = false
+
+    private var visible: [FeatureRequest] {
+        guard let filter else { return roadmap.requests }
+        return roadmap.requests.filter { $0.status == filter }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                Menu {
+                    Picker("Filter", selection: $filter) {
+                        Text("All (\(roadmap.requests.count))").tag(FeatureRequest.Status?.none)
+                        ForEach(FeatureRequest.Status.allCases) { status in
+                            Text("\(Text(status.title)) (\(roadmap.requests.filter { $0.status == status }.count))")
+                                .tag(Optional(status))
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        if let filter {
+                            Text("\(Text(filter.title)) (\(visible.count))")
+                        } else {
+                            Text("All (\(roadmap.requests.count))")
+                        }
+                        Image(systemName: "chevron.up.chevron.down").font(.caption.weight(.semibold))
+                    }
+                    .font(.headline)
+                    .foregroundStyle(Color.readTimeText)
+                }
+                .padding(.bottom, 4)
+
+                if roadmap.isLoading && roadmap.requests.isEmpty {
+                    ProgressView().padding(.top, 40)
+                } else if roadmap.loadFailed && roadmap.requests.isEmpty {
+                    VStack(spacing: 10) {
+                        Image(systemName: "icloud.slash")
+                            .font(.system(size: 44))
+                            .foregroundStyle(.secondary)
+                        Text(roadmap.isSignedIn ? "Couldn't load the roadmap" : "Sign in to iCloud")
+                            .font(.headline)
+                        Text(roadmap.isSignedIn
+                             ? "Check your internet connection, then pull to refresh."
+                             : "The roadmap is shared through iCloud. Sign in to iCloud in the Settings app to see and vote on features.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        Button("Try Again") { Task { await roadmap.load() } }
+                            .tint(.readTimePurple)
+                            .padding(.top, 4)
+                    }
+                    .padding(.top, 40)
+                } else if visible.isEmpty {
+                    VStack(spacing: 10) {
+                        Image(systemName: "map")
+                            .font(.system(size: 44))
+                            .foregroundStyle(.secondary)
+                        Text("No features here yet")
+                            .font(.headline)
+                        Text("Tap + to suggest something you'd like to see in ReadTime.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.top, 40)
+                } else {
+                    ForEach(visible) { request in
+                        NavigationLink {
+                            FeatureRequestDetailView(request: request, roadmap: roadmap)
+                        } label: {
+                            FeatureRequestRow(request: request) {
+                                Task { await roadmap.toggleVote(for: request) }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(20)
+            .padding(.bottom, 70)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.readTimeBackground.ignoresSafeArea(edges: .all))
+        .navigationTitle("Roadmap")
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await roadmap.load() }
+        .task { await roadmap.load() }
+        .overlay(alignment: .bottomTrailing) {
+            Button {
+                suggesting = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 60, height: 60)
+                    .background(Color.readTimePurple, in: Circle())
+                    .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+            }
+            .accessibilityLabel("Suggest a Feature")
+            .padding(20)
+        }
+        .sheet(isPresented: $suggesting) {
+            SuggestFeatureView(roadmap: roadmap)
+        }
+        .alert("Roadmap", isPresented: Binding(get: { roadmap.message != nil }, set: { if !$0 { roadmap.message = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(roadmap.message ?? "")
+        }
+    }
+}
+
+struct FeatureRequestRow: View {
+    let request: FeatureRequest
+    let onVote: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            VoteButton(votes: request.votes, hasVoted: request.hasVoted, action: onVote)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(request.title)
+                        .font(.headline)
+                        .foregroundStyle(Color.readTimeText)
+                        .lineLimit(2)
+                    Spacer(minLength: 8)
+                    StatusBadge(status: request.status)
+                }
+                if !request.details.isEmpty {
+                    Text(request.details)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .readTimeCard()
+    }
+}
+
+struct VoteButton: View {
+    let votes: Int
+    let hasVoted: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Image(systemName: hasVoted ? "arrowtriangle.up.fill" : "arrowtriangle.up")
+                    .font(.subheadline)
+                Text("\(votes)")
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+            }
+            .foregroundStyle(hasVoted ? Color.readTimePurple : Color.secondary)
+            .frame(width: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(hasVoted ? Text("Remove vote, \(votes) votes") : Text("Vote, \(votes) votes"))
+    }
+}
+
+struct StatusBadge: View {
+    let status: FeatureRequest.Status
+
+    var body: some View {
+        Text(status.title)
+            .textCase(.uppercase)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(status.color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(status.color.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+            .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+struct FeatureRequestDetailView: View {
+    let request: FeatureRequest
+    @ObservedObject var roadmap: RoadmapStore
+
+    private var current: FeatureRequest {
+        roadmap.requests.first { $0.id == request.id } ?? request
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                StatusBadge(status: current.status)
+                Text(current.title)
+                    .font(.title2.bold())
+                if !current.details.isEmpty {
+                    Text(current.details)
+                        .foregroundStyle(Color.readTimeText)
+                }
+                Button {
+                    Task { await roadmap.toggleVote(for: current) }
+                } label: {
+                    Label(current.hasVoted ? "Voted · \(current.votes)" : "Vote · \(current.votes)",
+                          systemImage: current.hasVoted ? "arrowtriangle.up.fill" : "arrowtriangle.up")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .tint(current.hasVoted ? .secondary : .readTimePurple)
+                .padding(.top, 8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+        .background(Color.readTimeBackground.ignoresSafeArea())
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct SuggestFeatureView: View {
+    @ObservedObject var roadmap: RoadmapStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var details = ""
+    @State private var isSending = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Feature name", text: $title)
+                    TextField("What should it do, and why would it help you?", text: $details, axis: .vertical)
+                        .lineLimit(4...10)
+                } footer: {
+                    Text("Suggestions are reviewed before they appear on the roadmap for everyone to vote on.")
+                }
+            }
+            .navigationTitle("Suggest a Feature")
+            .navigationBarTitleDisplayMode(.inline)
+            .keyboardDoneButton()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if isSending {
+                        ProgressView()
+                    } else {
+                        Button("Send") {
+                            isSending = true
+                            Task {
+                                let sent = await roadmap.suggest(
+                                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                                    details: details.trimmingCharacters(in: .whitespacesAndNewlines)
+                                )
+                                isSending = false
+                                if sent { dismiss() }
+                            }
+                        }
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - App icon
+
+enum AlternateIcon: String, CaseIterable, Identifiable {
+    case standard = "Default", midnight = "Midnight", paper = "Paper", sunset = "Sunset", forest = "Forest", ocean = "Ocean"
+
+    var id: String { rawValue }
+
+    /// Nil selects the primary icon.
+    var iconName: String? { self == .standard ? nil : "AppIcon-\(rawValue)" }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .standard: "Default"
+        case .midnight: "Midnight"
+        case .paper: "Paper"
+        case .sunset: "Sunset"
+        case .forest: "Forest"
+        case .ocean: "Ocean"
+        }
+    }
+
+    static var current: AlternateIcon {
+        let name = UIApplication.shared.alternateIconName
+        return allCases.first { $0.iconName == name } ?? .standard
+    }
+}
+
+struct AppIconPickerView: View {
+    @State private var selection = AlternateIcon.current
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 18)], spacing: 22) {
+                ForEach(AlternateIcon.allCases) { icon in
+                    Button {
+                        choose(icon)
+                    } label: {
+                        VStack(spacing: 8) {
+                            Image("AppIconPreview-\(icon.rawValue)")
+                                .resizable()
+                                .frame(width: 76, height: 76)
+                                .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 17, style: .continuous)
+                                        .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                                )
+                                .padding(4)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 21, style: .continuous)
+                                        .stroke(selection == icon ? Color.readTimePurple : .clear, lineWidth: 3)
+                                )
+                            Text(icon.title)
+                                .font(.subheadline.weight(selection == icon ? .semibold : .regular))
+                                .foregroundStyle(selection == icon ? Color.readTimePurple : Color.readTimeText)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selection == icon ? .isSelected : [])
+                }
+            }
+            .padding(24)
+        }
+        .background(Color.readTimeBackground.ignoresSafeArea())
+        .navigationTitle("App Icon")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("App Icon", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
+        }
+    }
+
+    private func choose(_ icon: AlternateIcon) {
+        guard icon != selection, UIApplication.shared.supportsAlternateIcons else { return }
+        let previous = selection
+        selection = icon
+        Task {
+            do {
+                try await setIcon(icon, retries: 2)
+            } catch {
+                selection = previous
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// iOS sometimes answers EAGAIN ("Resource temporarily unavailable") while it's still busy,
+    /// occasionally even after the icon did change, so check the icon in use and try again.
+    private func setIcon(_ icon: AlternateIcon, retries: Int) async throws {
+        do {
+            try await UIApplication.shared.setAlternateIconName(icon.iconName)
+        } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(EAGAIN) {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            if UIApplication.shared.alternateIconName == icon.iconName { return }
+            guard retries > 0 else { throw error }
+            try await setIcon(icon, retries: retries - 1)
+        }
+    }
+}
+
+// MARK: - Import & export
+
+enum LibraryTransfer {
+    enum TransferError: LocalizedError {
+        case noBooksFound
+
+        var errorDescription: String? {
+            String(localized: "No books were found in this file. Export your library as CSV from Goodreads or StoryGraph and try again.")
+        }
+    }
+
+    private static func temporaryFile(named name: String) -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent(name)
+    }
+
+    private static var dateStamp: String {
+        Date.now.formatted(.iso8601.year().month().day())
+    }
+
+    @MainActor
+    static func backupFile(for store: ReadingStore) throws -> URL {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let url = temporaryFile(named: "ReadTime Backup \(dateStamp).json")
+        try encoder.encode(store.snapshot).write(to: url, options: .atomic)
+        return url
+    }
+
+    @MainActor
+    static func booksCSVFile(for store: ReadingStore) throws -> URL {
+        var rows = [["Title", "Author", "Genre", "Pages", "Current Page", "Status", "Rating", "Date Finished"]]
+        for book in store.books {
+            rows.append([
+                book.title, book.author, book.genre, String(book.totalPages), String(book.currentPage),
+                book.status.rawValue, book.rating.map(String.init) ?? "",
+                book.finishedAt.map { $0.formatted(.iso8601.year().month().day()) } ?? ""
+            ])
+        }
+        let csv = rows.map { $0.map(escape).joined(separator: ",") }.joined(separator: "\n")
+        let url = temporaryFile(named: "ReadTime Books \(dateStamp).csv")
+        try csv.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    /// Reads files picked with `fileImporter`, which live outside the app's sandbox.
+    private static func contents(of url: URL) throws -> Data {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        return try Data(contentsOf: url)
+    }
+
+    static func readBackup(from url: URL) throws -> ReadingSnapshot {
+        try JSONDecoder().decode(ReadingSnapshot.self, from: contents(of: url))
+    }
+
+    /// Understands Goodreads and StoryGraph exports, and ReadTime's own CSV.
+    static func books(fromCSV url: URL) throws -> [Book] {
+        let text = String(decoding: try contents(of: url), as: UTF8.self)
+        let rows = parseCSV(text)
+        guard let header = rows.first else { throw TransferError.noBooksFound }
+        let columns = header.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+        func column(_ names: String...) -> Int? { names.lazy.compactMap { columns.firstIndex(of: $0) }.first }
+
+        guard let titleColumn = column("title") else { throw TransferError.noBooksFound }
+        let authorColumn = column("author", "authors", "author l-f")
+        let pagesColumn = column("number of pages", "pages", "page count")
+        let currentPageColumn = column("current page")
+        let statusColumn = column("exclusive shelf", "read status", "status")
+        let ratingColumn = column("my rating", "star rating", "rating")
+        let dateColumn = column("date read", "last date read", "date finished")
+        let genreColumn = column("genre", "genres")
+
+        let dateFormats = ["yyyy/MM/dd", "yyyy-MM-dd", "MM/dd/yyyy"]
+        func parseDate(_ value: String) -> Date? {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            for format in dateFormats {
+                formatter.dateFormat = format
+                if let date = formatter.date(from: value) { return date }
+            }
+            return nil
+        }
+
+        let books: [Book] = rows.dropFirst().compactMap { row in
+            func value(_ index: Int?) -> String {
+                guard let index, index < row.count else { return "" }
+                return row[index].trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            let title = value(titleColumn)
+            guard !title.isEmpty else { return nil }
+
+            let pages = Int(value(pagesColumn)) ?? 0
+            let totalPages = pages > 0 ? pages : 250
+            let status: BookStatus
+            switch value(statusColumn).lowercased() {
+            case "read", "finished": status = .finished
+            case "currently-reading", "reading": status = .reading
+            default: status = .wantToRead
+            }
+            let rating = Double(value(ratingColumn)).map { Int($0.rounded()) }.flatMap { (1...5).contains($0) ? $0 : nil }
+            let genre = value(genreColumn).components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? ""
+            let author = value(authorColumn).components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? ""
+
+            return Book(
+                id: UUID(),
+                title: title,
+                author: author.isEmpty ? String(localized: "Unknown Author") : author,
+                genre: genre.isEmpty ? String(localized: "General") : genre,
+                totalPages: totalPages,
+                currentPage: status == .finished ? totalPages : min(Int(value(currentPageColumn)) ?? 0, totalPages),
+                status: status,
+                finishedAt: status == .finished ? (parseDate(value(dateColumn)) ?? .now) : nil,
+                rating: status == .finished ? rating : nil
+            )
+        }
+        guard !books.isEmpty else { throw TransferError.noBooksFound }
+        return books
+    }
+
+    private static func escape(_ field: String) -> String {
+        guard field.contains(where: { $0 == "," || $0 == "\"" || $0.isNewline }) else { return field }
+        return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    /// RFC 4180: quoted fields may contain commas, doubled quotes, and line breaks.
+    static func parseCSV(_ text: String) -> [[String]] {
+        var rows: [[String]] = []
+        var row: [String] = []
+        var field = ""
+        var inQuotes = false
+        var iterator = text.makeIterator()
+        var pending: Character?
+
+        while let char = pending ?? iterator.next() {
+            pending = nil
+            if inQuotes {
+                if char == "\"" {
+                    if let next = iterator.next() {
+                        if next == "\"" { field.append("\"") } else { inQuotes = false; pending = next }
+                    } else {
+                        inQuotes = false
+                    }
+                } else {
+                    field.append(char)
+                }
+            } else {
+                switch char {
+                case "\"": inQuotes = true
+                case ",": row.append(field); field = ""
+                case "\n", "\r\n", "\r":
+                    row.append(field); field = ""
+                    if row.contains(where: { !$0.isEmpty }) { rows.append(row) }
+                    row = []
+                default: field.append(char)
+                }
+            }
+        }
+        row.append(field)
+        if row.contains(where: { !$0.isEmpty }) { rows.append(row) }
+        // Byte-order mark some spreadsheet apps add to the first header.
+        if let first = rows.first?.first, first.hasPrefix("\u{FEFF}") {
+            rows[0][0] = String(first.dropFirst())
+        }
+        return rows
+    }
+}
+
+struct ImportExportView: View {
+    private enum Picking { case csv, backup }
+
+    @EnvironmentObject private var store: ReadingStore
+    @State private var backupURL: URL?
+    @State private var csvURL: URL?
+    @State private var picking: Picking?
+    @State private var pendingBackup: ReadingSnapshot?
+    @State private var message: String?
+
+    var body: some View {
+        Form {
+            Section {
+                if let backupURL {
+                    ShareLink(item: backupURL) {
+                        Label("Export Backup (JSON)", systemImage: "externaldrive.badge.checkmark")
+                    }
+                }
+                if let csvURL {
+                    ShareLink(item: csvURL) {
+                        Label("Export Books (CSV)", systemImage: "tablecells")
+                    }
+                }
+            } header: {
+                Text("Export")
+            } footer: {
+                Text("A backup has everything: books, sessions, journal, and goals. The CSV lists your books for spreadsheets and other reading apps.")
+            }
+
+            Section {
+                Button {
+                    picking = .csv
+                } label: {
+                    Label("Import from Goodreads or StoryGraph", systemImage: "square.and.arrow.down")
+                }
+                Button {
+                    picking = .backup
+                } label: {
+                    Label("Restore from Backup File", systemImage: "clock.arrow.circlepath")
+                }
+            } header: {
+                Text("Import")
+            } footer: {
+                Text("In Goodreads, go to My Books → Import and export → Export Library. In StoryGraph, go to Manage Account → Export StoryGraph Library. Books already in your library are skipped.")
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.readTimeBackground.ignoresSafeArea())
+        .navigationTitle("Import & Export")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            backupURL = try? LibraryTransfer.backupFile(for: store)
+            csvURL = try? LibraryTransfer.booksCSVFile(for: store)
+        }
+        .fileImporter(
+            isPresented: Binding(get: { picking != nil }, set: { if !$0 { picking = nil } }),
+            allowedContentTypes: picking == .backup ? [.json] : [.commaSeparatedText, .plainText]
+        ) { result in
+            let kind = picking
+            picking = nil
+            switch result {
+            case .success(let url):
+                handlePicked(url, kind: kind)
+            case .failure(let error):
+                message = error.localizedDescription
+            }
+        }
+        .confirmationDialog("Restore this backup?", isPresented: Binding(get: { pendingBackup != nil }, set: { if !$0 { pendingBackup = nil } }), titleVisibility: .visible) {
+            Button("Replace Data on This iPhone", role: .destructive) {
+                if let pendingBackup {
+                    store.restore(from: pendingBackup)
+                    message = String(localized: "Your reading data was restored.")
+                }
+                pendingBackup = nil
+            }
+        } message: {
+            Text("Your books, goals, and journal on this device will be replaced with the backup.")
+        }
+        .alert("Import & Export", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(message ?? "")
+        }
+    }
+
+    private func handlePicked(_ url: URL, kind: Picking?) {
+        do {
+            if kind == .backup {
+                pendingBackup = try LibraryTransfer.readBackup(from: url)
+            } else {
+                let books = try LibraryTransfer.books(fromCSV: url)
+                let added = store.importBooks(books)
+                message = String(localized: "Imported \(added) books. \(books.count - added) were already in your library.")
+            }
+        } catch {
+            message = (error as? LocalizedError)?.errorDescription ?? String(localized: "This file couldn't be read.")
+        }
+    }
+}
+
 struct AboutView: View {
     @Environment(\.openURL) private var openURL
 
@@ -3407,7 +4942,7 @@ struct AboutView: View {
 // MARK: - Onboarding
 
 struct OnboardingView: View {
-    private enum Step { case welcome, goal, firstBook }
+    private enum Step { case welcome, source, goal, importBooks, firstBook }
 
     @EnvironmentObject private var store: ReadingStore
     @State private var step = Step.welcome
@@ -3418,16 +4953,26 @@ struct OnboardingView: View {
             case .welcome:
                 OnboardingWelcomeStep(
                     onDemo: { store.finishOnboarding(withDemoContent: true) },
-                    onStartFresh: { withAnimation { step = .goal } }
+                    onStartFresh: { withAnimation { step = .source } }
+                )
+            case .source:
+                OnboardingSourceStep(
+                    onBack: { withAnimation { step = .welcome } },
+                    onContinue: { withAnimation { step = .goal } }
                 )
             case .goal:
                 OnboardingGoalStep(
-                    onBack: { withAnimation { step = .welcome } },
+                    onBack: { withAnimation { step = .source } },
+                    onContinue: { withAnimation { step = .importBooks } }
+                )
+            case .importBooks:
+                OnboardingImportStep(
+                    onBack: { withAnimation { step = .goal } },
                     onContinue: { withAnimation { step = .firstBook } }
                 )
             case .firstBook:
                 OnboardingFirstBookStep(
-                    onBack: { withAnimation { step = .goal } },
+                    onBack: { withAnimation { step = .importBooks } },
                     onFinish: { store.finishOnboarding(withDemoContent: false) }
                 )
             }
@@ -3509,6 +5054,7 @@ private struct OnboardingWelcomeStep: View {
 /// Shared layout for the onboarding steps after the welcome screen.
 private struct OnboardingStepLayout<Content: View, Actions: View>: View {
     let progress: Int
+    var total = 4
     let title: LocalizedStringKey
     let subtitle: LocalizedStringKey
     let onBack: () -> Void
@@ -3526,14 +5072,14 @@ private struct OnboardingStepLayout<Content: View, Actions: View>: View {
                 .accessibilityLabel("Back")
                 Spacer()
                 HStack(spacing: 6) {
-                    ForEach(1...2, id: \.self) { index in
+                    ForEach(1...total, id: \.self) { index in
                         Capsule()
                             .fill(index <= progress ? Color.readTimePurple : Color.secondary.opacity(0.25))
                             .frame(width: index == progress ? 24 : 8, height: 8)
                     }
                 }
                 .accessibilityElement()
-                .accessibilityLabel(Text("Step \(progress) of 2"))
+                .accessibilityLabel(Text("Step \(progress) of \(total)"))
                 Spacer()
                 Color.clear.frame(width: 44, height: 44)
             }
@@ -3566,6 +5112,175 @@ private struct OnboardingStepLayout<Content: View, Actions: View>: View {
     }
 }
 
+private struct OnboardingSourceStep: View {
+    enum Source: String, CaseIterable, Identifiable {
+        case appStore, search, social, video, friends, other
+
+        var id: String { rawValue }
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .appStore: "App Store"
+            case .search: "Google Search"
+            case .social: "Facebook/Instagram/Threads"
+            case .video: "TikTok/YouTube"
+            case .friends: "Friends/family"
+            case .other: "Other"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .appStore: "bag.fill"
+            case .search: "magnifyingglass"
+            case .social: "bubble.left.and.bubble.right.fill"
+            case .video: "play.rectangle.fill"
+            case .friends: "person.2.fill"
+            case .other: "ellipsis"
+            }
+        }
+    }
+
+    @AppStorage("onboarding_referral_source") private var storedSource = ""
+    @State private var selection: Source?
+    let onBack: () -> Void
+    let onContinue: () -> Void
+
+    var body: some View {
+        OnboardingStepLayout(
+            progress: 1,
+            title: "Where did you hear about ReadTime?",
+            subtitle: "It helps us know how readers find the app. Your answer is sent anonymously.",
+            onBack: onBack
+        ) {
+            VStack(spacing: 12) {
+                ForEach(Source.allCases) { source in
+                    Button {
+                        selection = source
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: source.systemImage)
+                                .font(.title3)
+                                .foregroundStyle(Color.readTimePurple)
+                                .frame(width: 32)
+                            Text(source.title)
+                                .font(.headline)
+                                .foregroundStyle(Color.readTimeText)
+                            Spacer()
+                            Image(systemName: selection == source ? "checkmark.circle.fill" : "circle")
+                                .font(.title3)
+                                .foregroundStyle(selection == source ? Color.readTimePurple : Color.secondary.opacity(0.5))
+                        }
+                        .padding(16)
+                        .readTimeCard()
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(selection == source ? Color.readTimePurple : .clear, lineWidth: 2)
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selection == source ? .isSelected : [])
+                }
+            }
+        } actions: {
+            Button {
+                if let selection {
+                    storedSource = selection.rawValue
+                    Task { await ReferralReport.send(source: selection.rawValue) }
+                }
+                onContinue()
+            } label: {
+                Text("Continue").font(.headline).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(selection == nil)
+
+            Button("Skip", action: onContinue)
+                .font(.subheadline)
+        }
+        .onAppear { selection = Source(rawValue: storedSource) }
+    }
+}
+
+private struct OnboardingImportStep: View {
+    @EnvironmentObject private var store: ReadingStore
+    let onBack: () -> Void
+    let onContinue: () -> Void
+    @State private var picking = false
+    @State private var importedCount: Int?
+    @State private var errorMessage: String?
+
+    var body: some View {
+        OnboardingStepLayout(
+            progress: 3,
+            title: "Bringing some books with you?",
+            subtitle: "Import your library from another reading app. You can also do this later in Settings.",
+            onBack: onBack
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                importCard(title: "Import from Goodreads", systemImage: "g.circle.fill",
+                           hint: "My Books → Import and export → Export Library")
+                importCard(title: "Import from StoryGraph", systemImage: "chart.bar.xaxis",
+                           hint: "Manage Account → Export StoryGraph Library")
+
+                if let importedCount {
+                    Label("Imported \(importedCount) books", systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.readTimeGreen)
+                        .padding(.top, 4)
+                }
+            }
+        } actions: {
+            Button(action: onContinue) {
+                Text(importedCount == nil ? "Skip" : "Continue").font(.headline).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
+            do {
+                let books = try LibraryTransfer.books(fromCSV: result.get())
+                importedCount = (importedCount ?? 0) + store.importBooks(books)
+            } catch {
+                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+        }
+        .alert("Import", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
+        }
+    }
+
+    private func importCard(title: LocalizedStringKey, systemImage: String, hint: LocalizedStringKey) -> some View {
+        Button {
+            picking = true
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: systemImage)
+                    .font(.title2)
+                    .foregroundStyle(Color.readTimePurple)
+                    .frame(width: 36)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(Color.readTimeText)
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "square.and.arrow.down")
+                    .foregroundStyle(.secondary)
+            }
+            .padding(16)
+            .readTimeCard()
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct OnboardingGoalStep: View {
     private enum Choice { case minutesPerDay, booksPerYear }
 
@@ -3579,7 +5294,7 @@ private struct OnboardingGoalStep: View {
 
     var body: some View {
         OnboardingStepLayout(
-            progress: 1,
+            progress: 2,
             title: "Choose your goal",
             subtitle: "Start small. You can change it anytime in Goals.",
             onBack: onBack
@@ -3682,7 +5397,7 @@ private struct OnboardingFirstBookStep: View {
 
     var body: some View {
         OnboardingStepLayout(
-            progress: 2,
+            progress: 4,
             title: "Add your first book",
             subtitle: "What are you reading now, or what's next on your list?",
             onBack: onBack
@@ -3775,6 +5490,13 @@ final class AdManager: NSObject, ObservableObject, FullScreenContentDelegate {
     /// and preloads the first ad.
     func start() {
         guard !started else { return }
+        #if DEBUG
+        // Used when capturing App Store screenshots: `simctl launch … -disableAds YES`.
+        if UserDefaults.standard.bool(forKey: "disableAds") {
+            isAdFree = true
+            return
+        }
+        #endif
         started = true
         Task { await prepare() }
     }
@@ -4080,11 +5802,11 @@ struct AppIconView: View {
     let size: CGFloat
 
     var body: some View {
-        Image(systemName: "book.pages.fill")
-            .font(.system(size: size * 0.5))
-            .foregroundStyle(.white)
+        // The real icon artwork, so this always matches what's on the Home Screen.
+        Image("AppIconPreview-Default")
+            .resizable()
             .frame(width: size, height: size)
-            .background(Color.readTimePurple, in: RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
             .accessibilityHidden(true)
     }
 }
@@ -4111,162 +5833,9 @@ struct SectionHeader<Action: View>: View {
     }
 }
 
-struct BookCover: View {
-    let book: Book
-    let width: CGFloat
-    let height: CGFloat
-
-    var body: some View {
-        CoverImage(coverName: book.coverName, coverURL: book.coverURL)
-            .frame(width: width, height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 5))
-        .accessibilityLabel("Cover of \(book.title)")
-    }
-}
-
-/// Loads the cover exports from the app bundle. The Figma source assets are PNG
-/// resources instead of Xcode asset-catalog entries, so SwiftUI's `Image(name:)`
-/// lookup is not sufficient here.
-struct FigmaImage: View {
-    let name: String
-
-    private var image: UIImage? {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "png") else { return nil }
-        return UIImage(contentsOfFile: url.path)
-    }
-
-    var body: some View {
-        if let image {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-        } else {
-            CoverPlaceholder()
-        }
-    }
-}
-
-struct CoverPlaceholder: View {
-    var body: some View {
-        Image(systemName: "book.closed.fill")
-            .font(.title2)
-            .foregroundStyle(Color.readTimePurple)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.readTimePurple.opacity(0.10))
-    }
-}
-
-/// A book cover from the app bundle (sample books) or from an online search result.
-struct CoverImage: View {
-    let coverName: String?
-    let coverURL: String?
-    /// Keep the downloaded image on disk. Search result thumbnails only stay in memory.
-    var persist = true
-    @State private var remoteImage: UIImage?
-
-    var body: some View {
-        Group {
-            if let coverName {
-                FigmaImage(name: coverName)
-            } else if let remoteImage {
-                Image(uiImage: remoteImage)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                CoverPlaceholder()
-            }
-        }
-        .task(id: coverURL) {
-            guard coverName == nil, let coverURL, let url = URL(string: coverURL) else {
-                remoteImage = nil
-                return
-            }
-            remoteImage = await CoverCache.image(for: url, persist: persist)
-        }
-    }
-}
-
-/// Downloads book covers once and keeps them in Application Support so saved books
-/// still show their cover offline.
-enum CoverCache {
-    private static let memory = NSCache<NSURL, NSData>()
-
-    private static var directory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Covers", isDirectory: true)
-    }
-
-    private static func fileURL(for url: URL) -> URL {
-        let hash = SHA256.hash(data: Data(url.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined()
-        return directory.appendingPathComponent(hash).appendingPathExtension("jpg")
-    }
-
-    /// Covers the user picked from Photos, stored by file name so the path survives app updates.
-    private static let uploadScheme = "readtime-cover"
-
-    static func saveUploadedCover(_ data: Data) throws -> String {
-        guard let image = UIImage(data: data) else { throw CocoaError(.fileReadCorruptFile) }
-        // Covers show at most ~170pt wide, so keep them small.
-        let maxSide: CGFloat = 900
-        let scale = min(1, maxSide / max(image.size.width, image.size.height))
-        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let resized = UIGraphicsImageRenderer(size: size).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
-        guard let jpeg = resized.jpegData(compressionQuality: 0.85) else { throw CocoaError(.fileWriteUnknown) }
-
-        let name = "\(UUID().uuidString).jpg"
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try jpeg.write(to: directory.appendingPathComponent(name), options: .atomic)
-        return "\(uploadScheme):\(name)"
-    }
-
-    static func image(for url: URL, persist: Bool) async -> UIImage? {
-        if url.scheme == uploadScheme {
-            let file = directory.appendingPathComponent(String(url.absoluteString.dropFirst(uploadScheme.count + 1)))
-            return UIImage(contentsOfFile: file.path)
-        }
-        let file = fileURL(for: url)
-        if let data = try? Data(contentsOf: file), let image = UIImage(data: data) {
-            return image
-        }
-
-        var data = memory.object(forKey: url as NSURL) as Data?
-        if data == nil {
-            guard let (downloaded, response) = try? await URLSession.shared.data(from: url),
-                  (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-            data = downloaded
-        }
-        guard let data, let image = UIImage(data: data) else { return nil }
-
-        memory.setObject(data as NSData, forKey: url as NSURL)
-        if persist {
-            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try? data.write(to: file, options: .atomic)
-        }
-        return image
-    }
-}
-
 extension View {
     func readTimeCard() -> some View {
         background(Color.readTimeCardBackground, in: RoundedRectangle(cornerRadius: 14))
             .shadow(color: .black.opacity(0.06), radius: 8, y: 3)
-    }
-}
-
-extension Color {
-    static let readTimePurple = Color(light: (0.412, 0.255, 0.776), dark: (0.604, 0.482, 0.918))
-    static let readTimeBackground = Color(light: (0.945, 0.961, 0.976), dark: (0.043, 0.047, 0.063))
-    static let readTimeCardBackground = Color(light: (1.0, 1.0, 1.0), dark: (0.110, 0.114, 0.137))
-    static let readTimeText = Color(light: (0.200, 0.255, 0.345), dark: (0.855, 0.878, 0.918))
-    static let readTimeGreen = Color(red: 0.012, green: 0.706, blue: 0.012)
-    static let readTimeAmber = Color(red: 0.890, green: 0.490, blue: 0.075)
-}
-
-private extension Color {
-    init(light: (Double, Double, Double), dark: (Double, Double, Double)) {
-        self.init(uiColor: UIColor { traits in
-            let c = traits.userInterfaceStyle == .dark ? dark : light
-            return UIColor(red: c.0, green: c.1, blue: c.2, alpha: 1)
-        })
     }
 }

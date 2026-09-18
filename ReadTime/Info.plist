@@ -47,6 +47,8 @@
 	<string>$(GOOGLE_BOOKS_API_KEY)</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>ReadTime uses this to show ads that are more relevant to you. Ads keep the app free.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchScreen</key>

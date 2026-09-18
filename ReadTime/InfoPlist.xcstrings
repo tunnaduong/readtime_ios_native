@@ -1,42 +1,66 @@
 {
-  "sourceLanguage": "en",
-  "strings": {
-    "NSUserTrackingUsageDescription": {
-      "comment": "Privacy - Tracking Usage Description",
-      "extractionState": "extracted_with_value",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "ReadTime uses this to show ads that are more relevant to you. Ads keep the app free."
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "comment" : "Bundle display name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "ReadTime"
+          }
+        }
+      }
+    },
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "ReadTime"
+          }
+        }
+      }
+    },
+    "NSUserTrackingUsageDescription" : {
+      "comment" : "Privacy - Tracking Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "ReadTime uses this to show ads that are more relevant to you. Ads keep the app free."
           }
         },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ReadTime dùng quyền này để hiển thị quảng cáo phù hợp hơn với bạn. Quảng cáo giúp ứng dụng miễn phí."
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ReadTime usa este permiso para mostrarte anuncios más relevantes. Los anuncios mantienen la app gratuita."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ReadTime usa este permiso para mostrarte anuncios más relevantes. Los anuncios mantienen la app gratuita."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ReadTime はこの許可を使って、あなたにより関連性の高い広告を表示します。広告によりアプリを無料で提供しています。"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ReadTime はこの許可を使って、あなたにより関連性の高い広告を表示します。広告によりアプリを無料で提供しています。"
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ReadTime dùng quyền này để hiển thị quảng cáo phù hợp hơn với bạn. Quảng cáo giúp ứng dụng miễn phí."
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ReadTime 使用此权限为你展示更相关的广告。广告让 App 保持免费。"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ReadTime 使用此权限为你展示更相关的广告。广告让 App 保持免费。"
           }
         }
       }
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }
