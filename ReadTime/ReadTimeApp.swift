@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 import CryptoKit
 import UserNotifications
 import UniformTypeIdentifiers
@@ -143,8 +142,8 @@ enum CloudKitWebService {
 
 @main
 struct ReadTimeApp: App {
-    @StateObject var store = ReadingStore()
-    @StateObject var purchases = PurchaseManager()
+    @State var store = ReadingStore()
+    @State var purchases = PurchaseManager()
     @Environment(\.scenePhase) var scenePhase
     @AppStorage(AppearanceMode.storageKey) var appearance = AppearanceMode.system
     @AppStorage(CloudBackup.syncEnabledKey) var iCloudSyncEnabled = false
@@ -167,8 +166,8 @@ struct ReadTimeApp: App {
                     }
                     #endif
                 }
-                .environmentObject(store)
-                .environmentObject(purchases)
+                .environment(store)
+                .environment(purchases)
                 .tint(.readTimePurple)
                 .preferredColorScheme(appearance.colorScheme)
                 .onAppear { KeyboardDismissal.install() }
@@ -259,30 +258,34 @@ enum DemoContent {
 }
 
 @MainActor
-final class ReadingStore: ObservableObject {
-    @Published var books: [Book] = []
-    @Published var activities: [ReadingActivity] = []
-    @Published var journalEntries: [JournalEntry] = []
+@Observable
+final class ReadingStore {
+    var books: [Book] = []
+    var activities: [ReadingActivity] = []
+    var journalEntries: [JournalEntry] = []
 
-    @Published var dailyGoal = 30
+    var dailyGoal = 30
     /// Which days and for how long the daily goal applies. Nil means every day with no end date.
-    @Published var routine: ReadingRoutine?
-    @Published var yearlyBookGoal = 24
-    @Published var reminderEnabled = false
-    @Published var reminderTime = Calendar.current.date(from: DateComponents(hour: 20, minute: 0)) ?? .now
-    @Published var selectedBookID: UUID?
+    var routine: ReadingRoutine?
+    var yearlyBookGoal = 24
+    var reminderEnabled = false
+    var reminderTime = Calendar.current.date(from: DateComponents(hour: 20, minute: 0)) ?? .now
+    var selectedBookID: UUID?
     /// The ID of the book currently being read (session in progress).
-    @Published var activeSessionBookID: UUID?
+    var activeSessionBookID: UUID?
     /// The timestamp when the current reading session started.
-    @Published var activeSessionStartedAt: Date?
+    var activeSessionStartedAt: Date?
 
     /// True until the user picks demo content or a fresh start on first launch.
-    @Published private(set) var needsOnboarding = false
+    private(set) var needsOnboarding = false
 
-    private var autosave: AnyCancellable?
-
-    /// Loads the data saved on this device (starting empty on first launch) and
-    /// saves again shortly after anything changes.
+    /// Loads the data saved on this device (starting empty on first launch).
+    /// Mutating methods below call `save()` themselves — this used to be a
+    /// single Combine `objectWillChange` debounce instead, but Skip Fuse's
+    /// Android cross-compile has no Combine module ("no such module
+    /// 'Combine'"), so ReadingStore moved from ObservableObject/@Published
+    /// to the newer Observation framework (@Observable), which has no
+    /// equivalent publisher to hang a debounce off of.
     init() {
         if let saved = LocalStore.load() {
             restore(from: saved)
@@ -299,9 +302,6 @@ final class ReadingStore: ObservableObject {
             activeSessionBookID = session.bookID
             activeSessionStartedAt = session.startedAt
         }
-        autosave = objectWillChange
-            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
-            .sink { [weak self] _ in self?.save() }
     }
 
     func save() {
@@ -355,6 +355,7 @@ final class ReadingStore: ObservableObject {
         books.append(contentsOf: DemoContent.books)
         activities = (activities + DemoContent.activities).sorted { $0.date > $1.date }
         journalEntries = (journalEntries + DemoContent.journalEntries).sorted { $0.date > $1.date }
+        save()
     }
 
     /// Removes only the sample library, keeping everything the user added.
@@ -366,6 +367,7 @@ final class ReadingStore: ObservableObject {
         if let selectedBookID, book(with: selectedBookID) == nil {
             self.selectedBookID = nil
         }
+        save()
     }
 
     var activeBook: Book? {
@@ -419,6 +421,7 @@ final class ReadingStore: ObservableObject {
         } else {
             ReminderManager.cancel()
         }
+        save()
     }
 
     var currentWeekMinutes: Int {
@@ -557,6 +560,7 @@ final class ReadingStore: ObservableObject {
         yearlyBookGoal = snapshot.yearlyBookGoal
         routine = snapshot.routine
         selectedBookID = nil
+        save()
     }
 
     /// Adds books that aren't already in the library (same title and author). Returns how many were added.
@@ -572,6 +576,7 @@ final class ReadingStore: ObservableObject {
             existing.insert(key(book))
             added += 1
         }
+        if added > 0 { save() }
         return added
     }
 
@@ -583,16 +588,19 @@ final class ReadingStore: ObservableObject {
             journalEntries.append(entry)
         }
         journalEntries.sort { $0.date > $1.date }
+        save()
     }
 
     func deleteJournalEntry(id: UUID) {
         journalEntries.removeAll { $0.id == id }
+        save()
     }
 
     func addBook(_ book: Book) {
         var book = book
         if book.status == .finished { book.finishedAt = book.finishedAt ?? .now }
         books.insert(book, at: 0)
+        save()
     }
 
     /// Saves edits to a book. Sessions and journal entries refer to books by title, so a rename
@@ -616,12 +624,14 @@ final class ReadingStore: ObservableObject {
         for i in journalEntries.indices where journalEntries[i].bookTitle == oldTitle {
             journalEntries[i].bookTitle = book.title
         }
+        save()
     }
 
     /// Removes a book from the library. Its past sessions and journal entries stay.
     func deleteBook(id: UUID) {
         books.removeAll { $0.id == id }
         if selectedBookID == id { selectedBookID = nil }
+        save()
     }
 
     func completeSession(for bookID: UUID, seconds: TimeInterval, page: Int, journal: String) {
@@ -655,14 +665,15 @@ final class ReadingStore: ObservableObject {
                 at: 0
             )
         }
+        save()
     }
 }
 
 // MARK: - App shell
 
 struct ReadTimeTabView: View {
-    @EnvironmentObject var store: ReadingStore
-    @EnvironmentObject var purchases: PurchaseManager
+    @Environment(ReadingStore.self) var store
+    @Environment(PurchaseManager.self) var purchases
     @State var showingPaywall = false
     @State var showingBookPicker = false
     @State var showingSession = false
@@ -705,12 +716,12 @@ struct ReadTimeTabView: View {
                 store.selectedBookID = book.id
                 showingSession = true
             }
-            .environmentObject(store)
+            .environment(store)
             .presentationDetents([.medium, .large])
         }
         .compatFullScreenCover(isPresented: onboardingBinding) {
             OnboardingView()
-                .environmentObject(store)
+                .environment(store)
         }
         // Offer Premium once, right after onboarding.
         .onChange(of: store.needsOnboarding) { needsOnboarding in
@@ -722,12 +733,12 @@ struct ReadTimeTabView: View {
         }
         .compatFullScreenCover(isPresented: $showingPaywall) {
             PremiumPaywallView()
-                .environmentObject(purchases)
+                .environment(purchases)
         }
         .compatFullScreenCover(isPresented: $showingSession) {
             if let book = store.activeBook {
                 ReadingSessionView(bookID: book.id)
-                    .environmentObject(store)
+                    .environment(store)
             }
         }
     }
@@ -750,8 +761,8 @@ struct ReadTimeTabView: View {
 // MARK: - Home
 
 struct HomeView: View {
-    @EnvironmentObject var store: ReadingStore
-    @EnvironmentObject var purchases: PurchaseManager
+    @Environment(ReadingStore.self) var store
+    @Environment(PurchaseManager.self) var purchases
     @Binding var showingBookPicker: Bool
     @Binding var showingSession: Bool
     @Binding var showingJournal: Bool
@@ -810,8 +821,8 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
-                .environmentObject(store)
-                .environmentObject(purchases)
+                .environment(store)
+                .environment(purchases)
         }
         .safeAreaInset(edge: .bottom) {
             HStack {
@@ -877,7 +888,7 @@ struct HomeView: View {
 }
 
 struct DailyGoalCard: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -917,7 +928,7 @@ struct DailyGoalCard: View {
 
 /// Monday to Sunday of this week, with a check on each day the daily goal was met.
 struct WeekTracker: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     /// Colour for today's column.
     var todayColor: Color = .readTimePurple
     /// Give every day its own tile, as on the session summary.
@@ -1070,7 +1081,7 @@ struct JournalPreview: View {
 }
 
 struct JournalView: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @State var editingEntry: JournalEntry?
 
     var body: some View {
@@ -1138,7 +1149,7 @@ struct JournalView: View {
         }
         .sheet(item: $editingEntry) { entry in
             JournalEntryEditor(entry: entry, isNew: !store.journalEntries.contains { $0.id == entry.id })
-                .environmentObject(store)
+                .environment(store)
         }
     }
 
@@ -1176,7 +1187,7 @@ struct JournalEntryRow: View {
 }
 
 struct JournalEntryEditor: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @Environment(\.dismiss) var dismiss
     @State var entry: JournalEntry
     @State var confirmingDelete = false
@@ -1263,10 +1274,14 @@ struct JournalEntryEditor: View {
 // MARK: - Goals
 
 struct GoalsView: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @State var creating: GoalKind?
 
     var body: some View {
+        // Needed to get a two-way $store.property Binding (below) from an
+        // @Observable environment value — the Observation-framework
+        // equivalent of what @EnvironmentObject's `$` projection used to do.
+        @Bindable var store = store
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
                 AdBanner()
@@ -1318,7 +1333,7 @@ struct GoalsView: View {
         }
         .sheet(item: $creating) { kind in
             CreateGoalFlow(kind: kind)
-                .environmentObject(store)
+                .environment(store)
         }
     }
 }
@@ -1357,7 +1372,7 @@ struct GoalBadge: View {
 
 /// The current reading routine on the Goals tab, or a prompt to create one.
 struct RoutineGoalCard: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     let onCreate: (GoalKind) -> Void
 
     var body: some View {
@@ -1447,7 +1462,7 @@ struct GoalSummaryCard: View {
 }
 
 struct ReminderCard: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
 
     private var reminderBinding: Binding<Bool> {
         Binding(
@@ -1464,6 +1479,7 @@ struct ReminderCard: View {
     }
 
     var body: some View {
+        @Bindable var store = store
         VStack(alignment: .leading, spacing: 12) {
             Label("Gentle reminder", systemImage: "bell.badge")
                 .font(.headline)
@@ -1585,7 +1601,7 @@ struct CreateGoalFlow: View {
     private enum Step { case dailySpec, customDays, routine, preview }
 
     let kind: GoalKind
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @Environment(\.dismiss) var dismiss
     @State var draft: GoalDraft
     @State var stepIndex = 0
@@ -1831,7 +1847,7 @@ struct WeekdaysSection: View {
 }
 
 struct RoutineSection: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @Binding var draft: GoalDraft
     @State var askingCustom = false
     @State var customText = ""
@@ -2053,7 +2069,7 @@ struct PreviewFact: View {
 // MARK: - Library
 
 struct LibraryView: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @State var selection: BookStatus? = nil
     @State var showingAddBook = false
     @State var editingBook: Book?
@@ -2129,11 +2145,11 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $showingAddBook) {
             AddBookView()
-                .environmentObject(store)
+                .environment(store)
         }
         .sheet(item: $editingBook) { book in
             AddBookView(editing: book)
-                .environmentObject(store)
+                .environment(store)
         }
         .confirmationDialog(
             "Delete this book?",
@@ -2188,7 +2204,7 @@ struct BookLibraryCard: View {
 }
 
 struct AddBookView: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @Environment(\.dismiss) var dismiss
     /// The book being edited, or nil when adding a new one.
     private let editing: Book?
@@ -2638,7 +2654,7 @@ enum BookSearch {
 // MARK: - Stats
 
 struct StatsView: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -2768,7 +2784,7 @@ struct StarRatingPicker: View {
 
 /// A month grid where each day shows the cover of the book read most that day.
 struct ReadingCalendarCard: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @State var monthOffset = 0
 
     private var calendar: Calendar {
@@ -2919,7 +2935,7 @@ enum TrendPeriod: String, CaseIterable, Identifiable {
 
 /// Pages, time and finished books for a chosen period, compared with the period before it.
 struct TrendsSection: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @State var period = TrendPeriod.week
     @State var offset = 0
 
@@ -3100,7 +3116,7 @@ struct TrendCard: View {
 }
 
 struct InsightsCard: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
 
     var body: some View {
         VStack(spacing: 0) {
@@ -3164,7 +3180,7 @@ struct StatTile: View {
 // MARK: - Reading flow
 
 struct BookPickerView: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @Environment(\.dismiss) var dismiss
     let onSelect: (Book) -> Void
 
@@ -3220,7 +3236,7 @@ struct BookPickerView: View {
 }
 
 struct ReadingSessionView: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @Environment(\.dismiss) var dismiss
     let bookID: UUID
     @State var startedAt = Date()
@@ -3307,7 +3323,7 @@ struct ReadingSessionView: View {
                 FinishSessionView(bookID: bookID, seconds: Date().timeIntervalSince(startedAt)) {
                     dismiss()
                 }
-                .environmentObject(store)
+                .environment(store)
                 .presentationDetents([.large])
             }
             .onAppear {
@@ -3328,7 +3344,7 @@ struct ReadingSessionView: View {
 }
 
 struct FinishSessionView: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @Environment(\.dismiss) var dismiss
     let bookID: UUID
     let seconds: TimeInterval
@@ -3442,7 +3458,7 @@ struct FinishSessionView: View {
 
 /// Shown after a session is saved: how today's reading moved the daily, book, and yearly goals.
 struct GoalsUpdatedView: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     let bookID: UUID
     let onConfirm: () -> Void
 
@@ -3721,16 +3737,17 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 
 #if os(iOS)
 @MainActor
-final class PurchaseManager: ObservableObject {
+@Observable
+final class PurchaseManager {
     // TODO: Replace with the product ID configured in App Store Connect.
     static let premiumProductID = "com.fatties.readtime.premium"
 
-    @Published private(set) var premiumProduct: Product?
-    @Published private(set) var isPremium = false {
+    private(set) var premiumProduct: Product?
+    private(set) var isPremium = false {
         didSet { AdManager.shared.isAdFree = isPremium }
     }
-    @Published private(set) var isWorking = false
-    @Published var message: String?
+    private(set) var isWorking = false
+    var message: String?
 
     private var updatesTask: Task<Void, Never>?
 
@@ -3859,15 +3876,16 @@ final class PurchaseManager: ObservableObject {
 /// longer a blocker, or fall back to Play Billing directly via Skip's Kotlin
 /// interop otherwise.
 @MainActor
-final class PurchaseManager: ObservableObject {
+@Observable
+final class PurchaseManager {
     static let premiumProductID = "com.fatties.readtime.premium"
 
-    @Published private(set) var premiumProduct: String? = nil
-    @Published private(set) var isPremium = false {
+    private(set) var premiumProduct: String? = nil
+    private(set) var isPremium = false {
         didSet { AdManager.shared.isAdFree = isPremium }
     }
-    @Published private(set) var isWorking = false
-    @Published var message: String?
+    private(set) var isWorking = false
+    var message: String?
 
     func load() async {
         // TODO(android): query Play Billing for `premiumProductID` and current entitlements.
@@ -3942,8 +3960,8 @@ enum AppInfo {
 }
 
 struct SettingsView: View {
-    @EnvironmentObject var store: ReadingStore
-    @EnvironmentObject var purchases: PurchaseManager
+    @Environment(ReadingStore.self) var store
+    @Environment(PurchaseManager.self) var purchases
     @Environment(\.dismiss) var dismiss
     @Environment(\.openURL) var openURL
     @AppStorage(AppearanceMode.storageKey) var appearance = AppearanceMode.system
@@ -4014,7 +4032,7 @@ struct SettingsView: View {
                     // bigger activity-alias setup, so this entry is iOS-only.
                     NavigationLink {
                         ImportExportView()
-                            .environmentObject(store)
+                            .environment(store)
                     } label: {
                         Label("Import & Export", systemImage: "arrow.up.arrow.down")
                     }
@@ -4123,7 +4141,7 @@ struct SettingsView: View {
             }
             .compatFullScreenCover(isPresented: $showingPaywall) {
                 PremiumPaywallView()
-                    .environmentObject(purchases)
+                    .environment(purchases)
             }
         }
     }
@@ -4312,7 +4330,7 @@ enum ReferralReport {
 // MARK: - Premium paywall
 
 struct PremiumPaywallView: View {
-    @EnvironmentObject var purchases: PurchaseManager
+    @Environment(PurchaseManager.self) var purchases
     @Environment(\.dismiss) var dismiss
     @State var eligibleForTrial = false
 
@@ -4497,17 +4515,18 @@ struct FeatureRequest: Identifiable, Hashable, Codable {
 /// `Book`-typed methods with no such error. Unverified; if this doesn't fix
 /// it, the theory is wrong and something else is going on.)
 @MainActor
-final class RoadmapStore: ObservableObject {
+@Observable
+final class RoadmapStore {
     static let containerIdentifier = "iCloud.com.fatties.readtime"
 
-    @Published private(set) var requests: [FeatureRequest] = []
-    @Published private(set) var isLoading = false
-    @Published private(set) var loadFailed = false
+    private(set) var requests: [FeatureRequest] = []
+    private(set) var isLoading = false
+    private(set) var loadFailed = false
     /// False when there's no iCloud account on the device (iOS) -- always
     /// true on Android, which has no per-device Apple ID sign-in gate, only
     /// the app-wide server-to-server key.
-    @Published private(set) var isSignedIn = true
-    @Published var message: String?
+    private(set) var isSignedIn = true
+    var message: String?
 
     #if os(iOS)
     private let container = CKContainer(identifier: RoadmapStore.containerIdentifier)
@@ -4742,7 +4761,7 @@ final class RoadmapStore: ObservableObject {
 }
 
 struct RoadmapView: View {
-    @StateObject var roadmap = RoadmapStore()
+    @State var roadmap = RoadmapStore()
     @State var filter: FeatureRequestStatus?
     @State var suggesting = false
 
@@ -4925,7 +4944,7 @@ struct StatusBadge: View {
 
 struct FeatureRequestDetailView: View {
     let request: FeatureRequest
-    @ObservedObject var roadmap: RoadmapStore
+    var roadmap: RoadmapStore
 
     private var current: FeatureRequest {
         roadmap.requests.first { $0.id == request.id } ?? request
@@ -4964,7 +4983,7 @@ struct FeatureRequestDetailView: View {
 }
 
 struct SuggestFeatureView: View {
-    @ObservedObject var roadmap: RoadmapStore
+    var roadmap: RoadmapStore
     @Environment(\.dismiss) var dismiss
     @State var title = ""
     @State var details = ""
@@ -5285,7 +5304,7 @@ struct ImportExportView: View {
     // Not private: see the comment on OnboardingView.Step.
     enum Picking { case csv, backup }
 
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @State var backupURL: URL?
     @State var csvURL: URL?
     @State var picking: Picking?
@@ -5435,7 +5454,7 @@ struct OnboardingView: View {
     // requires a property's type to be at least as visible as the property.
     enum Step { case welcome, source, goal, importBooks, firstBook }
 
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     @State var step = Step.welcome
 
     var body: some View {
@@ -5695,7 +5714,7 @@ struct OnboardingSourceStep: View {
 }
 
 struct OnboardingImportStep: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     let onBack: () -> Void
     let onContinue: () -> Void
     @State var picking = false
@@ -5776,7 +5795,7 @@ struct OnboardingGoalStep: View {
     // Not private: see the comment on OnboardingView.Step above.
     enum Choice { case minutesPerDay, booksPerYear }
 
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     let onBack: () -> Void
     let onContinue: () -> Void
 
@@ -5882,7 +5901,7 @@ struct GoalChoiceCard<Accessory: View>: View {
 }
 
 struct OnboardingFirstBookStep: View {
-    @EnvironmentObject var store: ReadingStore
+    @Environment(ReadingStore.self) var store
     let onBack: () -> Void
     let onFinish: () -> Void
     @State var addingBook = false
@@ -5944,7 +5963,7 @@ struct OnboardingFirstBookStep: View {
         }
         .sheet(isPresented: $addingBook) {
             AddBookView()
-                .environmentObject(store)
+                .environment(store)
         }
     }
 }
@@ -5955,11 +5974,12 @@ struct OnboardingFirstBookStep: View {
 /// Google AdMob interstitials, shown when a reading session ends.
 /// IDs come from Info.plist (set in ReadTime/Config/ReadTime.xcconfig); they default to Google's test IDs.
 @MainActor
-final class AdManager: NSObject, ObservableObject, FullScreenContentDelegate {
+@Observable
+final class AdManager: NSObject, FullScreenContentDelegate {
     static let shared = AdManager()
 
     /// Premium users never see ads.
-    @Published var isAdFree = false
+    var isAdFree = false
 
     private var interstitial: InterstitialAd?
     private var isLoading = false
@@ -6024,7 +6044,7 @@ final class AdManager: NSObject, ObservableObject, FullScreenContentDelegate {
     }
 
     /// True once consent allows ads and the SDK has started; banners wait for this.
-    @Published private(set) var sdkStarted = false
+    private(set) var sdkStarted = false
 
     var bannerUnitID: String? {
         let value = (Bundle.main.object(forInfoDictionaryKey: "AdMobBannerUnitID") as? String ?? "")
@@ -6158,11 +6178,12 @@ final class AdManager: NSObject, ObservableObject, FullScreenContentDelegate {
 /// API) via Skip's Kotlin interop. There's no Android equivalent of
 /// AppTrackingTransparency — consent is handled by UMP alone.
 @MainActor
-final class AdManager: NSObject, ObservableObject {
+@Observable
+final class AdManager: NSObject {
     static let shared = AdManager()
 
-    @Published var isAdFree = false
-    @Published private(set) var sdkStarted = false
+    var isAdFree = false
+    private(set) var sdkStarted = false
 
     var bannerUnitID: String? { nil }
 
@@ -6181,7 +6202,7 @@ final class AdManager: NSObject, ObservableObject {
 #if os(iOS)
 /// An adaptive AdMob banner that takes no space until an ad has loaded, and none at all for Premium users.
 struct AdBanner: View {
-    @ObservedObject private var ads = AdManager.shared
+    var ads = AdManager.shared
     @State var width: CGFloat = 0
     @State var loadedHeight: CGFloat = 0
 
