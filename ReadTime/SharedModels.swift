@@ -251,16 +251,18 @@ struct CoverImage: View {
         Group {
             if let coverName {
                 FigmaImage(name: coverName)
-            }
-            #if !SKIP
-            else if let remoteImage {
-                Image(uiImage: remoteImage)
-                    .resizable()
-                    .scaledToFill()
-            }
-            #endif
-            else {
+            } else {
+                #if !SKIP
+                if let remoteImage {
+                    Image(uiImage: remoteImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    CoverPlaceholder()
+                }
+                #else
                 CoverPlaceholder()
+                #endif
             }
         }
         #if !SKIP
