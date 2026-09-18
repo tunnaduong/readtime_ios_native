@@ -3697,6 +3697,7 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
     /// Also applied at the window level so switching back to System takes effect
     /// immediately, including in sheets that are already on screen.
     func apply() {
+        #if !SKIP
         let style: UIUserInterfaceStyle = switch self {
         case .system: .unspecified
         case .light: .light
@@ -3706,6 +3707,10 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
             .forEach { $0.overrideUserInterfaceStyle = style }
+        #endif
+        // On Android, `.preferredColorScheme(appearance.colorScheme)` in
+        // ReadTimeApp's body is enough on its own; there's no UIKit-style
+        // window override to also update for sheets already on screen.
     }
 }
 
@@ -3960,9 +3965,14 @@ struct SettingsView: View {
 
                 Section {
                     Button {
+                        #if !SKIP
                         if let url = URL(string: UIApplication.openSettingsURLString) {
                             openURL(url)
                         }
+                        #else
+                        // TODO(android): open the per-app language settings screen
+                        // instead (Settings.ACTION_APP_LOCALE_SETTINGS on API 33+).
+                        #endif
                     } label: {
                         HStack {
                             Label("Language", systemImage: "globe")
@@ -3979,11 +3989,16 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    #if !SKIP
                     NavigationLink {
                         AppIconPickerView()
                     } label: {
                         Label("App Icon", systemImage: "square.grid.2x2")
                     }
+                    #endif
+                    // No alternate app icon support on Android — there's no
+                    // UIApplication.setAlternateIconName equivalent without a
+                    // bigger activity-alias setup, so this entry is iOS-only.
                     NavigationLink {
                         ImportExportView()
                             .environmentObject(store)
@@ -4020,9 +4035,13 @@ struct SettingsView: View {
                     Button {
                         if let url = AppInfo.writeReviewURL {
                             openURL(url)
-                        } else if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                        }
+                        #if !SKIP
+                        else if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
                             SKStoreReviewController.requestReview(in: scene)
                         }
+                        #endif
+                        // TODO(android): fall back to the Play In-App Review API here.
                     } label: {
                         Label("Leave a Review", systemImage: "star")
                             .foregroundStyle(Color.readTimeText)
@@ -4447,8 +4466,8 @@ struct FeatureRequest: Identifiable, Hashable {
     var hasVoted: Bool
 }
 
-@MainActor
 #if !SKIP
+@MainActor
 final class RoadmapStore: ObservableObject {
     static let containerIdentifier = "iCloud.com.fatties.readtime"
 
@@ -4573,6 +4592,7 @@ final class RoadmapStore: ObservableObject {
 /// Reads/writes the same CloudKit public database as iOS, over CloudKit Web
 /// Services (see `CloudKitWebService` above). `CloudKitWebService.installID`
 /// stands in for the signed-in Apple ID iOS uses to key each `Vote` record.
+@MainActor
 final class RoadmapStore: ObservableObject {
     static let containerIdentifier = "iCloud.com.fatties.readtime"
 
@@ -4978,6 +4998,7 @@ struct SuggestFeatureView: View {
 
 // MARK: - App icon
 
+#if !SKIP
 enum AlternateIcon: String, CaseIterable, Identifiable {
     case standard = "Default", midnight = "Midnight", paper = "Paper", sunset = "Sunset", forest = "Forest", ocean = "Ocean"
 
@@ -5076,6 +5097,7 @@ struct AppIconPickerView: View {
         }
     }
 }
+#endif
 
 // MARK: - Import & export
 
@@ -5370,9 +5392,12 @@ struct AboutView: View {
 
             Section {
                 Button("Rate ReadTime") {
+                    #if !SKIP
                     if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
                         SKStoreReviewController.requestReview(in: scene)
                     }
+                    #endif
+                    // TODO(android): fall back to the Play In-App Review API here.
                 }
                 Button("Contact Us") {
                     if let url = AppInfo.contactURL { openURL(url) }
@@ -6237,6 +6262,7 @@ extension View {
 
 /// Hides the keyboard when the user taps anywhere that isn't a text field, across the whole
 /// app (sheets included), without swallowing taps meant for buttons.
+#if !SKIP
 enum KeyboardDismissal {
     private static let handler = TapHandler()
 
@@ -6278,6 +6304,15 @@ enum KeyboardDismissal {
         }
     }
 }
+#else
+/// TODO(android): Compose dismisses the keyboard differently (e.g. LocalFocusManager
+/// / `.scrollDismissesKeyboard`, already used elsewhere in this app); tap-outside-to-dismiss
+/// across the whole app isn't wired up here yet.
+enum KeyboardDismissal {
+    static func dismiss() {}
+    static func install() {}
+}
+#endif
 
 // MARK: - Reusable views
 

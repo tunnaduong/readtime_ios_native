@@ -1,6 +1,8 @@
 import SwiftUI
-import UIKit
 import CryptoKit
+#if !SKIP
+import UIKit
+#endif
 
 // Models, storage, and colours shared by the app and its widgets.
 
@@ -201,12 +203,15 @@ struct BookCover: View {
 struct FigmaImage: View {
     let name: String
 
+    #if !SKIP
     private var image: UIImage? {
         guard let url = Bundle.main.url(forResource: name, withExtension: "png") else { return nil }
         return UIImage(contentsOfFile: url.path)
     }
+    #endif
 
     var body: some View {
+        #if !SKIP
         if let image {
             Image(uiImage: image)
                 .resizable()
@@ -214,6 +219,11 @@ struct FigmaImage: View {
         } else {
             CoverPlaceholder()
         }
+        #else
+        // TODO(android): render the bundled Figma PNG art here too — needs
+        // Skip's cross-platform image type in place of UIImage.
+        CoverPlaceholder()
+        #endif
     }
 }
 
@@ -233,20 +243,27 @@ struct CoverImage: View {
     let coverURL: String?
     /// Keep the downloaded image on disk. Search result thumbnails only stay in memory.
     var persist = true
+    #if !SKIP
     @State var remoteImage: UIImage?
+    #endif
 
     var body: some View {
         Group {
             if let coverName {
                 FigmaImage(name: coverName)
-            } else if let remoteImage {
+            }
+            #if !SKIP
+            else if let remoteImage {
                 Image(uiImage: remoteImage)
                     .resizable()
                     .scaledToFill()
-            } else {
+            }
+            #endif
+            else {
                 CoverPlaceholder()
             }
         }
+        #if !SKIP
         .task(id: coverURL) {
             guard coverName == nil, let coverURL, let url = URL(string: coverURL) else {
                 remoteImage = nil
@@ -254,11 +271,17 @@ struct CoverImage: View {
             }
             remoteImage = await CoverCache.image(for: url, persist: persist)
         }
+        #endif
+        // TODO(android): CoverCache (below) is iOS-only for now, so remote/
+        // online-search covers always fall back to CoverPlaceholder here.
     }
 }
 
 /// Downloads book covers once and keeps them in Application Support so saved books
 /// still show their cover offline.
+/// TODO(android): reimplement using a cross-platform image type once this is
+/// actually wired up on Android (its only call sites are gated to iOS for now).
+#if !SKIP
 enum CoverCache {
     private static let memory = NSCache<NSURL, NSData>()
 
@@ -315,6 +338,7 @@ enum CoverCache {
         return image
     }
 }
+#endif
 
 extension Color {
     static let readTimePurple = Color(light: (0.412, 0.255, 0.776), dark: (0.604, 0.482, 0.918))
@@ -327,9 +351,17 @@ extension Color {
 
 private extension Color {
     init(light: (Double, Double, Double), dark: (Double, Double, Double)) {
+        #if !SKIP
         self.init(uiColor: UIColor { traits in
             let c = traits.userInterfaceStyle == .dark ? dark : light
             return UIColor(red: c.0, green: c.1, blue: c.2, alpha: 1)
         })
+        #else
+        // TODO(android): this always renders the light variant — there's no
+        // UIColor-style dynamic-provider equivalent without Named/asset-catalog
+        // colors (which do adapt cross-platform) or reading the environment
+        // color scheme at each call site instead of at initialization time.
+        self.init(red: light.0, green: light.1, blue: light.2, opacity: 1)
+        #endif
     }
 }
