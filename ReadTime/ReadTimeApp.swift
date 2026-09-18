@@ -708,7 +708,7 @@ struct ReadTimeTabView: View {
             .environmentObject(store)
             .presentationDetents([.medium, .large])
         }
-        .fullScreenCover(isPresented: onboardingBinding) {
+        .compatFullScreenCover(isPresented: onboardingBinding) {
             OnboardingView()
                 .environmentObject(store)
         }
@@ -720,11 +720,11 @@ struct ReadTimeTabView: View {
                 showingPaywall = true
             }
         }
-        .fullScreenCover(isPresented: $showingPaywall) {
+        .compatFullScreenCover(isPresented: $showingPaywall) {
             PremiumPaywallView()
                 .environmentObject(purchases)
         }
-        .fullScreenCover(isPresented: $showingSession) {
+        .compatFullScreenCover(isPresented: $showingSession) {
             if let book = store.activeBook {
                 ReadingSessionView(bookID: book.id)
                     .environmentObject(store)
@@ -799,9 +799,9 @@ struct HomeView: View {
         }
         .background(Color.readTimeBackground.ignoresSafeArea())
         .navigationTitle("Home")
-        .navigationBarTitleDisplayMode(.large)
+        .compatNavigationBarTitleDisplayMode(inline: false)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .compatTopBarTrailing) {
                 Button { showingSettings = true } label: {
                     Image(systemName: "gearshape")
                 }
@@ -1127,7 +1127,7 @@ struct JournalView: View {
         .background(Color.readTimeBackground.ignoresSafeArea())
         .navigationTitle("Reading Journal")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .compatTopBarTrailing) {
                 Button {
                     editingEntry = newEntry()
                 } label: {
@@ -1232,7 +1232,7 @@ struct JournalEntryEditor: View {
             .background(Color.readTimeBackground.ignoresSafeArea())
             .navigationTitle(isNew ? "New Entry" : "Edit Entry")
             .keyboardDoneButton()
-            .navigationBarTitleDisplayMode(.inline)
+            .compatNavigationBarTitleDisplayMode(inline: true)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
@@ -1309,7 +1309,7 @@ struct GoalsView: View {
         .background(Color.readTimeBackground.ignoresSafeArea())
         .navigationTitle("Goals")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .compatTopBarTrailing) {
                 NewGoalMenu { creating = $0 } label: {
                     Image(systemName: "plus")
                 }
@@ -1632,7 +1632,7 @@ struct CreateGoalFlow: View {
             }
             .background(Color.readTimeBackground.ignoresSafeArea())
             .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
+            .compatNavigationBarTitleDisplayMode(inline: true)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
@@ -1794,7 +1794,7 @@ struct ReadPerDaySection: View {
         }
         .alert("Minutes per day", isPresented: $askingCustom) {
             TextField("Minutes", text: $customText)
-                .keyboardType(.numberPad)
+                .compatNumberPadKeyboard()
             Button("Cancel", role: .cancel) {}
             Button("Set") {
                 if let value = Int(customText) { minutes = min(max(value, 5), 600) }
@@ -1889,7 +1889,7 @@ struct RoutineSection: View {
         }
         .alert("Number of weeks", isPresented: $askingCustom) {
             TextField("Weeks", text: $customText)
-                .keyboardType(.numberPad)
+                .compatNumberPadKeyboard()
             Button("Cancel", role: .cancel) {}
             Button("Set") {
                 if let value = Int(customText) { draft.weeks = min(max(value, 1), 52) }
@@ -1926,7 +1926,7 @@ struct ChooseStartDaySheet: View {
             .padding(20)
             .background(Color.readTimeBackground.ignoresSafeArea())
             .navigationTitle("Choose Start Day")
-            .navigationBarTitleDisplayMode(.inline)
+            .compatNavigationBarTitleDisplayMode(inline: true)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
@@ -2118,7 +2118,7 @@ struct LibraryView: View {
         .background(Color.readTimeBackground.ignoresSafeArea())
         .navigationTitle("Library")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .compatTopBarTrailing) {
                 Button {
                     showingAddBook = true
                 } label: {
@@ -3295,9 +3295,9 @@ struct ReadingSessionView: View {
             }
             .background(Color.readTimeBackground.ignoresSafeArea())
             .navigationTitle("Reading Session")
-            .navigationBarTitleDisplayMode(.inline)
+            .compatNavigationBarTitleDisplayMode(inline: true)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .compatTopBarLeading) {
                     Button { dismiss() } label: { Image(systemName: "chevron.left") }
                 }
             }
@@ -3528,7 +3528,7 @@ struct GoalsUpdatedView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 8)
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .compatHiddenNavigationBar()
     }
 }
 
@@ -3919,13 +3919,21 @@ enum AppInfo {
         return "\(short) (\(build))"
     }
 
+    private static var osVersionSuffix: String {
+        #if os(iOS)
+        "iOS \(UIDevice.current.systemVersion)"
+        #else
+        "Android"
+        #endif
+    }
+
     static var contactURL: URL? {
         var components = URLComponents()
         components.scheme = "mailto"
         components.path = supportEmail
         components.queryItems = [
             URLQueryItem(name: "subject", value: String(localized: "ReadTime Support")),
-            URLQueryItem(name: "body", value: "\n\n---\nApp version: \(version)\niOS \(UIDevice.current.systemVersion)")
+            URLQueryItem(name: "body", value: "\n\n---\nApp version: \(version)\n\(osVersionSuffix)")
         ]
         return components.url
     }
@@ -4083,7 +4091,7 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(Color.readTimeBackground.ignoresSafeArea())
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .compatNavigationBarTitleDisplayMode(inline: true)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -4111,7 +4119,7 @@ struct SettingsView: View {
             } message: {
                 Text(purchases.message ?? "")
             }
-            .fullScreenCover(isPresented: $showingPaywall) {
+            .compatFullScreenCover(isPresented: $showingPaywall) {
                 PremiumPaywallView()
                     .environmentObject(purchases)
             }
@@ -4818,7 +4826,7 @@ struct RoadmapView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.readTimeBackground.ignoresSafeArea(edges: .all))
         .navigationTitle("Roadmap")
-        .navigationBarTitleDisplayMode(.inline)
+        .compatNavigationBarTitleDisplayMode(inline: true)
         .refreshable { await roadmap.load() }
         .task { await roadmap.load() }
         .overlay(alignment: .bottomTrailing) {
@@ -4949,7 +4957,7 @@ struct FeatureRequestDetailView: View {
             .padding(20)
         }
         .background(Color.readTimeBackground.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
+        .compatNavigationBarTitleDisplayMode(inline: true)
     }
 }
 
@@ -4972,7 +4980,7 @@ struct SuggestFeatureView: View {
                 }
             }
             .navigationTitle("Suggest a Feature")
-            .navigationBarTitleDisplayMode(.inline)
+            .compatNavigationBarTitleDisplayMode(inline: true)
             .keyboardDoneButton()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -5067,7 +5075,7 @@ struct AppIconPickerView: View {
         }
         .background(Color.readTimeBackground.ignoresSafeArea())
         .navigationTitle("App Icon")
-        .navigationBarTitleDisplayMode(.inline)
+        .compatNavigationBarTitleDisplayMode(inline: true)
         .alert("App Icon", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -5321,7 +5329,7 @@ struct ImportExportView: View {
         .scrollContentBackground(.hidden)
         .background(Color.readTimeBackground.ignoresSafeArea())
         .navigationTitle("Import & Export")
-        .navigationBarTitleDisplayMode(.inline)
+        .compatNavigationBarTitleDisplayMode(inline: true)
         .task {
             backupURL = try? LibraryTransfer.backupFile(for: store)
             csvURL = try? LibraryTransfer.booksCSVFile(for: store)
@@ -5413,7 +5421,7 @@ struct AboutView: View {
         .scrollContentBackground(.hidden)
         .background(Color.readTimeBackground.ignoresSafeArea())
         .navigationTitle("About")
-        .navigationBarTitleDisplayMode(.inline)
+        .compatNavigationBarTitleDisplayMode(inline: true)
     }
 }
 
@@ -6251,6 +6259,68 @@ struct AdBanner: View {
     }
 }
 #endif
+
+// MARK: - Cross-platform SwiftUI compatibility
+
+// Skip Fuse also compiles this target natively for macOS (as part of its own
+// build/test tooling — see Package.swift), even though the app never ships
+// there. These iOS-only SwiftUI APIs (unavailable on macOS, but present on
+// iOS and, via SkipUI, on Android) are wrapped so the many call sites below
+// don't each need their own #if.
+extension View {
+    @ViewBuilder func compatNavigationBarTitleDisplayMode(inline: Bool) -> some View {
+        #if os(macOS)
+        self
+        #else
+        self.navigationBarTitleDisplayMode(inline ? .inline : .large)
+        #endif
+    }
+
+    @ViewBuilder func compatFullScreenCover<Content: View>(
+        isPresented: Binding<Bool>,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        #if os(macOS)
+        self.sheet(isPresented: isPresented, content: content)
+        #else
+        self.fullScreenCover(isPresented: isPresented, content: content)
+        #endif
+    }
+
+    @ViewBuilder func compatNumberPadKeyboard() -> some View {
+        #if os(macOS)
+        self
+        #else
+        self.keyboardType(.numberPad)
+        #endif
+    }
+
+    @ViewBuilder func compatHiddenNavigationBar() -> some View {
+        #if os(macOS)
+        self
+        #else
+        self.toolbar(.hidden, for: .navigationBar)
+        #endif
+    }
+}
+
+extension ToolbarItemPlacement {
+    static var compatTopBarTrailing: ToolbarItemPlacement {
+        #if os(macOS)
+        .automatic
+        #else
+        .topBarTrailing
+        #endif
+    }
+
+    static var compatTopBarLeading: ToolbarItemPlacement {
+        #if os(macOS)
+        .automatic
+        #else
+        .topBarLeading
+        #endif
+    }
+}
 
 // MARK: - Keyboard
 

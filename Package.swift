@@ -10,14 +10,17 @@ import PackageDescription
 let package = Package(
     name: "ReadTimeNative",
     defaultLocalization: "en",
-    // macOS was previously listed here too (a pattern seen in some Skip
-    // templates), but that made `swift build`'s default host-platform build
-    // compile this iOS-only SwiftUI code (fullScreenCover,
-    // navigationBarTitleDisplayMode, toolbar placements, ...) for macOS,
-    // where none of it is available. This app only ships for iOS and
-    // Android; if Skip's own tooling turns out to need macOS declared here
-    // too, it'll fail with a clearer error pointing at that requirement.
-    platforms: [.iOS(.v17)],
+    // macOS is required here even though this app never ships for macOS:
+    // Skip Fuse's own dependencies (SkipUI, SkipFuse, the skipstone plugin)
+    // declare a macOS minimum, and `swift build` compiles this target
+    // natively for the host (macOS, on Skip's own CI/local dev flow) as
+    // part of its normal build — the actual Android build is a separate
+    // step (`skip gradle -p Android/ assemble`, per Skip's docs). That
+    // means genuinely iOS-only SwiftUI APIs used in this file (some
+    // toolbar placements, `navigationBarTitleDisplayMode`, etc.) need
+    // `#if !os(macOS)` guards, not just `#if os(iOS)` ones — see those
+    // call sites below.
+    platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
         .library(name: "ReadTime", type: .dynamic, targets: ["ReadTime"]),
     ],
