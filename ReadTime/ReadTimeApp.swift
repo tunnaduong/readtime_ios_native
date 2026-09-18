@@ -124,38 +124,19 @@ enum CloudKitWebService {
 
     /// ECDSA P-256/SHA-256 signature over `message`, base64-encoded, per CloudKit
     /// Web Services' server-to-server auth scheme.
-    /// Unverified — no Swift/Skip toolchain available here to confirm either
-    /// branch actually compiles. Two independent attempts, gated so whichever
-    /// works can be kept: CryptoKit (in case Skip's crypto shim covers P256
-    /// signing) and, if not, a direct `java.security` call using the
-    /// fully-qualified-Kotlin-call pattern Skip Fuse documents.
+    /// Unverified. A `java.security`-based fallback was tried here for Android
+    /// (fully-qualified Kotlin/Java calls, per Skip's docs) but doesn't compile
+    /// under Skip Fuse mode ("cannot find 'java' in scope", "value of type
+    /// 'Data' has no member 'kotlin'") — that calling convention is apparently
+    /// for Skip's other (Lite/transpile) mode, not Fuse's native-Swift-on-Android
+    /// build. TODO(android): find Skip Fuse's actual Java/Kotlin interop syntax
+    /// (likely via SkipBridge) and redo the Android branch; for now this relies
+    /// on CryptoKit's `P256.Signing` also being available under Skip Fuse, which
+    /// is itself unconfirmed.
     private static func sign(message: String, privateKeyPEM: String) throws -> String {
-        #if os(iOS)
         let key = try P256.Signing.PrivateKey(pemRepresentation: privateKeyPEM)
         let signature = try key.signature(for: Data(message.utf8))
         return signature.derRepresentation.base64EncodedString()
-        #else
-        // TODO(android): confirm this transpiles — untested. Strips the PEM's
-        // header/footer/newlines, decodes the base64 body to a PKCS#8 key, and
-        // signs with the JDK's own ECDSA implementation (no extra Gradle
-        // dependency needed; java.security is part of the Android runtime).
-        let base64Body = privateKeyPEM
-            .replacingOccurrences(of: "-----BEGIN PRIVATE KEY-----", with: "")
-            .replacingOccurrences(of: "-----END PRIVATE KEY-----", with: "")
-            .replacingOccurrences(of: "\n", with: "")
-            .trimmingCharacters(in: .whitespaces)
-        guard let keyBytes = Data(base64Encoded: base64Body) else {
-            throw ServiceError.notConfigured
-        }
-        let keySpec = java.security.spec.PKCS8EncodedKeySpec(keyBytes.kotlin())
-        let keyFactory = java.security.KeyFactory.getInstance("EC")
-        let privateKey = keyFactory.generatePrivate(keySpec)
-        let signer = java.security.Signature.getInstance("SHA256withECDSA")
-        signer.initSign(privateKey)
-        signer.update(Data(message.utf8).kotlin())
-        let signatureBytes = signer.sign()
-        return Data(platformValue: signatureBytes).base64EncodedString()
-        #endif
     }
 }
 #endif
@@ -5291,7 +5272,8 @@ enum LibraryTransfer {
 }
 
 struct ImportExportView: View {
-    private enum Picking { case csv, backup }
+    // Not private: see the comment on OnboardingView.Step.
+    enum Picking { case csv, backup }
 
     @EnvironmentObject var store: ReadingStore
     @State var backupURL: URL?
@@ -5438,7 +5420,10 @@ struct AboutView: View {
 // MARK: - Onboarding
 
 struct OnboardingView: View {
-    private enum Step { case welcome, source, goal, importBooks, firstBook }
+    // Not private: its @State property below was made non-private for Skip's
+    // bridging (see the earlier "Private state property" fixes), and Swift
+    // requires a property's type to be at least as visible as the property.
+    enum Step { case welcome, source, goal, importBooks, firstBook }
 
     @EnvironmentObject var store: ReadingStore
     @State var step = Step.welcome
@@ -5778,7 +5763,8 @@ struct OnboardingImportStep: View {
 }
 
 struct OnboardingGoalStep: View {
-    private enum Choice { case minutesPerDay, booksPerYear }
+    // Not private: see the comment on OnboardingView.Step above.
+    enum Choice { case minutesPerDay, booksPerYear }
 
     @EnvironmentObject var store: ReadingStore
     let onBack: () -> Void

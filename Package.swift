@@ -10,7 +10,14 @@ import PackageDescription
 let package = Package(
     name: "ReadTimeNative",
     defaultLocalization: "en",
-    platforms: [.iOS(.v17), .macOS(.v14)],
+    // macOS was previously listed here too (a pattern seen in some Skip
+    // templates), but that made `swift build`'s default host-platform build
+    // compile this iOS-only SwiftUI code (fullScreenCover,
+    // navigationBarTitleDisplayMode, toolbar placements, ...) for macOS,
+    // where none of it is available. This app only ships for iOS and
+    // Android; if Skip's own tooling turns out to need macOS declared here
+    // too, it'll fail with a clearer error pointing at that requirement.
+    platforms: [.iOS(.v17)],
     products: [
         .library(name: "ReadTime", type: .dynamic, targets: ["ReadTime"]),
     ],
