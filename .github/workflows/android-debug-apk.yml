@@ -73,6 +73,12 @@ jobs:
       - name: Build Swift package (sanity check)
         run: swift build --product ReadTime
 
+      # Homebrew refuses to load a Cask from a third-party tap ("untrusted
+      # tap") without this, even though the tap itself (skiptools/skip) is
+      # already tapped via the `skip` formula install above.
+      - name: Trust the skiptools Homebrew tap for its Casks
+        run: brew trust skiptools/skip
+
       # The Swift Android SDK (a cross-compilation toolchain, separate from
       # the Xcode/host Swift toolchain) that `skip android build` needs.
       # Pinned explicitly: auto-resolving "latest" picked 6.4.0, which
