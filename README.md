@@ -21,6 +21,8 @@ This branch adds the groundwork to build ReadTime for Android with [Skip](https:
 - Home/Lock Screen widgets — out of scope, no Android equivalent.
 - **Nothing here has been built or run.** This was written without a Swift toolchain, Skip CLI, or Android SDK available — the next step is opening it on a machine that has all three and fixing whatever doesn't compile. `CloudKitWebService`'s request signing in particular has two untested implementations (CryptoKit for iOS, `java.security` for Android) that need verifying.
 
+**CI:** `.github/workflows/android-debug-apk.yml` builds a debug APK on every push to `dhphuc`/`main` (and on manual dispatch) and publishes it two ways: as a normal workflow artifact, and committed to the `prerelease-android` branch at `prerelease/ReadTime-debug.apk` (with a short README noting the source commit) so there's always one stable link to the latest build. This workflow is also unverified — the Skip CLI invocation and the Gradle `assembleDebug` step are best-effort against Skip's documented CLI, not a tested pipeline; expect to fix it up on the first real run.
+
 ## Included flows
 
 - A four-tab Home, Goals, Library, and Stats experience
