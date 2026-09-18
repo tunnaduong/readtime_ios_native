@@ -3,23 +3,45 @@ import Combine
 import CryptoKit
 import UserNotifications
 import UniformTypeIdentifiers
-#if !SKIP
-import UIKit
 // Frameworks with no Skip/Android equivalent: Skip transpiles this file to
 // Kotlin/Compose, so these are compiled only for the Darwin (iOS) target. Each
 // type that depends on one of these has an `#else` branch below with an
 // Android-side stand-in (CloudKit Web Services over HTTP, Play Billing, AdMob
 // Android SDK, Android Photo Picker) that still needs its real implementation
 // wired up — see README.md "Android TODOs".
+// `canImport(...)`, not `#if !SKIP`, for the imports themselves: a plain
+// custom flag around `import UIKit` still failed with "no such module
+// 'UIKit'" — module-dependency scanning appears to look at `import`
+// statements before/independent of `#if` flag evaluation, and `canImport`
+// is the idiom meant for exactly this "module may not exist here" case.
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(Charts)
 import Charts
+#endif
+#if canImport(StoreKit)
 import StoreKit
+#endif
+#if canImport(PhotosUI)
 import PhotosUI
+#endif
+#if canImport(GoogleMobileAds)
 import GoogleMobileAds
+#endif
+#if canImport(UserMessagingPlatform)
 import UserMessagingPlatform
+#endif
+#if canImport(AppTrackingTransparency)
 import AppTrackingTransparency
+#endif
+#if canImport(WidgetKit)
 import WidgetKit
+#endif
+#if canImport(CloudKit)
 import CloudKit
-#else
+#endif
+#if SKIP
 import Foundation
 #endif
 

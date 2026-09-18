@@ -1,6 +1,6 @@
 import SwiftUI
 import CryptoKit
-#if !SKIP
+#if canImport(UIKit)
 import UIKit
 #endif
 
