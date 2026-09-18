@@ -4433,35 +4433,41 @@ struct PremiumPaywallView: View {
 ///   Only records with `listed = 1` appear, so set it after reviewing a suggestion.
 /// - `Vote`: featureName (String, Queryable). One record per user and feature.
 /// Deploy the schema to Production before release.
-struct FeatureRequest: Identifiable, Hashable {
-    enum Status: String, CaseIterable, Identifiable {
-        case inReview, planned, inProgress, completed
+// Kept top-level rather than nested inside FeatureRequest (as `Status`):
+// Skip's bridging couldn't resolve nested-type member references like
+// `FeatureRequest.Status.inReview` ("unable to determine the owning type"),
+// and separately couldn't bridge `[FeatureRequest]`/`FeatureRequest`
+// themselves in RoadmapStore's Android branch below ("does not appear to
+// be a bridged type") — unverified whether de-nesting alone resolves both.
+enum FeatureRequestStatus: String, CaseIterable, Identifiable {
+    case inReview, planned, inProgress, completed
 
-        var id: String { rawValue }
+    var id: String { rawValue }
 
-        var title: LocalizedStringKey {
-            switch self {
-            case .inReview: "In Review"
-            case .planned: "Planned"
-            case .inProgress: "In Progress"
-            case .completed: "Completed"
-            }
-        }
-
-        var color: Color {
-            switch self {
-            case .inReview: .blue
-            case .planned: .readTimePurple
-            case .inProgress: .orange
-            case .completed: .readTimeGreen
-            }
+    var title: LocalizedStringKey {
+        switch self {
+        case .inReview: "In Review"
+        case .planned: "Planned"
+        case .inProgress: "In Progress"
+        case .completed: "Completed"
         }
     }
 
+    var color: Color {
+        switch self {
+        case .inReview: .blue
+        case .planned: .readTimePurple
+        case .inProgress: .orange
+        case .completed: .readTimeGreen
+        }
+    }
+}
+
+struct FeatureRequest: Identifiable, Hashable {
     let id: String
     var title: String
     var details: String
-    var status: Status
+    var status: FeatureRequestStatus
     var votes: Int
     var hasVoted: Bool
 }
@@ -4513,7 +4519,7 @@ final class RoadmapStore: ObservableObject {
                     id: name,
                     title: record["title"] as? String ?? "",
                     details: record["details"] as? String ?? "",
-                    status: FeatureRequest.Status(rawValue: record["status"] as? String ?? "") ?? .inReview,
+                    status: FeatureRequestStatus(rawValue: record["status"] as? String ?? "") ?? .inReview,
                     votes: counts[name] ?? 0,
                     hasVoted: mine.contains(name)
                 )
@@ -4565,7 +4571,7 @@ final class RoadmapStore: ObservableObject {
         let record = CKRecord(recordType: "FeatureRequest")
         record["title"] = title
         record["details"] = details
-        record["status"] = FeatureRequest.Status.inReview.rawValue
+        record["status"] = FeatureRequestStatus.inReview.rawValue
         record["listed"] = 0 as Int64
         do {
             try await database.save(record)
@@ -4653,7 +4659,7 @@ final class RoadmapStore: ObservableObject {
                     id: name,
                     title: (fields["title"] as? [String: Any])?["value"] as? String ?? "",
                     details: (fields["details"] as? [String: Any])?["value"] as? String ?? "",
-                    status: FeatureRequest.Status(rawValue: (fields["status"] as? [String: Any])?["value"] as? String ?? "") ?? .inReview,
+                    status: FeatureRequestStatus(rawValue: (fields["status"] as? [String: Any])?["value"] as? String ?? "") ?? .inReview,
                     votes: votesByFeature[name] ?? 0,
                     hasVoted: myVotes.contains(name)
                 )
@@ -4710,7 +4716,7 @@ final class RoadmapStore: ObservableObject {
                         "fields": [
                             "title": ["value": title],
                             "details": ["value": details],
-                            "status": ["value": FeatureRequest.Status.inReview.rawValue],
+                            "status": ["value": FeatureRequestStatus.inReview.rawValue],
                             "listed": ["value": 0],
                         ],
                     ],
@@ -4728,7 +4734,7 @@ final class RoadmapStore: ObservableObject {
 
 struct RoadmapView: View {
     @StateObject var roadmap = RoadmapStore()
-    @State var filter: FeatureRequest.Status?
+    @State var filter: FeatureRequestStatus?
     @State var suggesting = false
 
     private var visible: [FeatureRequest] {
@@ -4741,8 +4747,8 @@ struct RoadmapView: View {
             VStack(spacing: 14) {
                 Menu {
                     Picker("Filter", selection: $filter) {
-                        Text("All (\(roadmap.requests.count))").tag(FeatureRequest.Status?.none)
-                        ForEach(FeatureRequest.Status.allCases) { status in
+                        Text("All (\(roadmap.requests.count))").tag(FeatureRequestStatus?.none)
+                        ForEach(FeatureRequestStatus.allCases) { status in
                             Text("\(Text(status.title)) (\(roadmap.requests.filter { $0.status == status }.count))")
                                 .tag(Optional(status))
                         }
@@ -4894,7 +4900,7 @@ struct VoteButton: View {
 }
 
 struct StatusBadge: View {
-    let status: FeatureRequest.Status
+    let status: FeatureRequestStatus
 
     var body: some View {
         Text(status.title)
