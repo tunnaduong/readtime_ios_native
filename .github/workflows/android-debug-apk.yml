@@ -6,11 +6,18 @@ name: Android debug APK
 #    stable link to the latest debug build without digging through run history.
 #
 # Iterated directly against real GitHub Actions runs (no local macOS/Android
-# toolchain available while developing this) — the `swift build` step
-# (Swift compile + Skip's bridging/transpilation) now succeeds; the `skip
-# gradle` step is the newest addition and not yet confirmed. See README.md's
-# "Android (Skip)" section for what's still stubbed (ads, photo picker,
-# purchases need real keys) before this produces a fully working app.
+# toolchain available while developing this). `swift build` (plain host
+# compile) now succeeds outright — that caught every source-level bridging/
+# syntax issue. The actual Android artifact comes from `skip android build`
+# (Skip Fuse's real cross-compile command, via the Swift Android SDK
+# installed by `skip android sdk install`) — replaced an earlier, wrong
+# assumption that `swift build` alone generates a Gradle project under
+# Android/ that a plain `./gradlew`/`skip gradle` could assemble; per Skip's
+# docs, `skip android build` runs fully headless, no emulator needed. Its
+# exact output layout (a raw binary vs. something Gradle-packageable into an
+# .apk) is not yet confirmed by an actual run. See README.md's "Android
+# (Skip)" section for what's still stubbed (ads, photo picker, purchases
+# need real keys) before this produces a fully working app.
 
 on:
   push:
@@ -59,24 +66,31 @@ jobs:
       - name: Skip doctor (sanity-check the toolchain)
         run: skip --version && skip doctor || true
 
-      # Resolves the SPM package, runs Skip's `skipstone` build plugin, and
-      # generates the Android/ Gradle project from Package.swift + skip.yml.
-      - name: Build Swift package (generates the Android Gradle project)
+      # Sanity build: plain host compile of the Swift package (SwiftUI
+      # transpilation, Skip's bridging checks, ordinary Swift type-checking).
+      # Fails fast on source problems before spending time on the Android
+      # cross-compile below.
+      - name: Build Swift package (sanity check)
         run: swift build --product ReadTime
 
-      # Per Skip's docs, the Android build is a separate step from `swift
-      # build` — `skip gradle` (not a raw `./gradlew`; Android/gradlew isn't
-      # generated/checked in) wraps Gradle for the generated project.
-      - name: Assemble Android debug APK
-        run: skip gradle -p Android/ assembleDebug
+      # The Swift Android SDK (a cross-compilation toolchain, separate from
+      # the Xcode/host Swift toolchain) that `skip android build` needs.
+      - name: Install the Swift Android SDK
+        run: skip android sdk install
+
+      # Skip Fuse's real Android artifact: cross-compiles this same Swift
+      # source natively for Android via the SDK above. Headless — no
+      # emulator/device needed.
+      - name: Build for Android
+        run: skip android build --configuration debug --dir build-output
 
       - name: Locate the built APK
         id: apk
         run: |
-          apk_path=$(find Android -type f -name "*-debug.apk" | head -n 1)
+          apk_path=$(find build-output Android -type f -name "*.apk" 2>/dev/null | head -n 1)
           if [ -z "$apk_path" ]; then
-            echo "No debug APK found under Android/" >&2
-            find Android -name "*.apk" >&2 || true
+            echo "No .apk found under build-output/ or Android/ — inspecting what 'skip android build' actually produced:" >&2
+            find build-output Android -type f 2>/dev/null >&2 || true
             exit 1
           fi
           echo "path=$apk_path" >> "$GITHUB_OUTPUT"
