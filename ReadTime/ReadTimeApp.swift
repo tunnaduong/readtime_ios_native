@@ -4439,7 +4439,7 @@ struct PremiumPaywallView: View {
 // and separately couldn't bridge `[FeatureRequest]`/`FeatureRequest`
 // themselves in RoadmapStore's Android branch below ("does not appear to
 // be a bridged type") — unverified whether de-nesting alone resolves both.
-enum FeatureRequestStatus: String, CaseIterable, Identifiable {
+enum FeatureRequestStatus: String, CaseIterable, Identifiable, Codable {
     case inReview, planned, inProgress, completed
 
     var id: String { rawValue }
@@ -4463,7 +4463,7 @@ enum FeatureRequestStatus: String, CaseIterable, Identifiable {
     }
 }
 
-struct FeatureRequest: Identifiable, Hashable {
+struct FeatureRequest: Identifiable, Hashable, Codable {
     let id: String
     var title: String
     var details: String
