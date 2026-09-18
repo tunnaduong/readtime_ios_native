@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 // Android-side stand-in (CloudKit Web Services over HTTP, Play Billing, AdMob
 // Android SDK, Android Photo Picker) that still needs its real implementation
 // wired up — see README.md "Android TODOs".
-// `canImport(...)`, not `#if !SKIP`, for the imports themselves: a plain
+// `canImport(...)`, not `#if os(iOS)`, for the imports themselves: a plain
 // custom flag around `import UIKit` still failed with "no such module
 // 'UIKit'" — module-dependency scanning appears to look at `import`
 // statements before/independent of `#if` flag evaluation, and `canImport`
@@ -41,11 +41,11 @@ import WidgetKit
 #if canImport(CloudKit)
 import CloudKit
 #endif
-#if SKIP
+#if !os(iOS)
 import Foundation
 #endif
 
-#if SKIP
+#if !os(iOS)
 /// Talks to Apple's CloudKit **Web Services** REST API — the only way to reach
 /// the existing `iCloud.com.fatties.readtime` public database from Android,
 /// since there is no CloudKit SDK outside Apple platforms. Needs a CloudKit
@@ -130,7 +130,7 @@ enum CloudKitWebService {
     /// signing) and, if not, a direct `java.security` call using the
     /// fully-qualified-Kotlin-call pattern Skip Fuse documents.
     private static func sign(message: String, privateKeyPEM: String) throws -> String {
-        #if !SKIP
+        #if os(iOS)
         let key = try P256.Signing.PrivateKey(pemRepresentation: privateKeyPEM)
         let signature = try key.signature(for: Data(message.utf8))
         return signature.derRepresentation.base64EncodedString()
@@ -327,7 +327,7 @@ final class ReadingStore: ObservableObject {
         // Nothing is written until onboarding finishes, so quitting halfway shows it again next launch.
         guard !needsOnboarding else { return }
         LocalStore.save(snapshot)
-        #if !SKIP
+        #if os(iOS)
         WidgetCenter.shared.reloadAllTimelines()
         #endif
         // No Android home-screen widgets yet — WidgetKit has no Android equivalent
@@ -2221,7 +2221,7 @@ struct AddBookView: View {
     @State var coverName: String?
     @State var coverURL: String?
     @State var confirmingDelete = false
-    #if !SKIP
+    #if os(iOS)
     @State var photoItem: PhotosPickerItem?
     #endif
     @State var isLoadingPhoto = false
@@ -2328,7 +2328,7 @@ struct AddBookView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 5))
 
                         VStack(alignment: .leading, spacing: 10) {
-                            #if !SKIP
+                            #if os(iOS)
                             PhotosPicker(selection: $photoItem, matching: .images) {
                                 Label(hasCover ? "Change Cover" : "Upload Cover", systemImage: "photo.on.rectangle")
                             }
@@ -2357,7 +2357,7 @@ struct AddBookView: View {
                         }
                         .buttonStyle(.borderless)
                     }
-                    #if !SKIP
+                    #if os(iOS)
                     .onChange(of: photoItem) { item in
                         guard let item else { return }
                         Task { await loadCover(from: item) }
@@ -2443,7 +2443,7 @@ struct AddBookView: View {
         isSearching = false
     }
 
-    #if !SKIP
+    #if os(iOS)
     private func loadCover(from item: PhotosPickerItem) async {
         isLoadingPhoto = true
         photoError = nil
@@ -2713,7 +2713,7 @@ struct StatsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                #if !SKIP
+                #if os(iOS)
                 Chart(favourites.shares) { share in
                     BarMark(
                         x: .value("Share", share.percent),
@@ -3071,7 +3071,7 @@ struct TrendCard: View {
             .buttonStyle(.plain)
 
             if expanded {
-                #if !SKIP
+                #if os(iOS)
                 Chart(series, id: \.date) { point in
                     BarMark(
                         x: .value("Date", point.date, unit: unit),
@@ -3597,7 +3597,7 @@ struct GoalRingCard: View {
 
 /// Stores a single backup of the reading data in iCloud key-value storage, which
 /// syncs across the user's devices signed in to the same Apple ID (1 MB limit).
-#if !SKIP
+#if os(iOS)
 enum CloudBackup {
     static let syncEnabledKey = "iCloudSyncEnabled"
     private static let backupKey = "readtime.backup"
@@ -3719,7 +3719,7 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
     /// Also applied at the window level so switching back to System takes effect
     /// immediately, including in sheets that are already on screen.
     func apply() {
-        #if !SKIP
+        #if os(iOS)
         let style: UIUserInterfaceStyle = switch self {
         case .system: .unspecified
         case .light: .light
@@ -3736,7 +3736,7 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
     }
 }
 
-#if !SKIP
+#if os(iOS)
 @MainActor
 final class PurchaseManager: ObservableObject {
     // TODO: Replace with the product ID configured in App Store Connect.
@@ -3987,7 +3987,7 @@ struct SettingsView: View {
 
                 Section {
                     Button {
-                        #if !SKIP
+                        #if os(iOS)
                         if let url = URL(string: UIApplication.openSettingsURLString) {
                             openURL(url)
                         }
@@ -4011,7 +4011,7 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    #if !SKIP
+                    #if os(iOS)
                     NavigationLink {
                         AppIconPickerView()
                     } label: {
@@ -4058,7 +4058,7 @@ struct SettingsView: View {
                         if let url = AppInfo.writeReviewURL {
                             openURL(url)
                         } else {
-                            #if !SKIP
+                            #if os(iOS)
                             if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
                                 SKStoreReviewController.requestReview(in: scene)
                             }
@@ -4270,7 +4270,7 @@ struct SettingsView: View {
     }
 }
 
-#if !SKIP
+#if os(iOS)
 /// Sends the onboarding answer to the CloudKit public database, once per device.
 /// Only the chosen option and the app version are stored — nothing about the reader.
 enum ReferralReport {
@@ -4497,7 +4497,7 @@ struct FeatureRequest: Identifiable, Hashable, Codable {
 
 /// Reads/writes the CloudKit public database: natively on iOS, and over
 /// CloudKit Web Services (see `CloudKitWebService` above) on Android -- a
-/// single class with #if !SKIP branches inside its members, rather than two
+/// single class with #if os(iOS) branches inside its members, rather than two
 /// separate class declarations. (Two full duplicate declarations under
 /// #if/#else was the pattern used elsewhere in this file, e.g. CloudBackup,
 /// PurchaseManager, AdManager -- but it seems to be what caused Skip's
@@ -4518,7 +4518,7 @@ final class RoadmapStore: ObservableObject {
     @Published private(set) var isSignedIn = true
     @Published var message: String?
 
-    #if !SKIP
+    #if os(iOS)
     private let container = CKContainer(identifier: RoadmapStore.containerIdentifier)
     private var database: CKDatabase { container.publicCloudDatabase }
     private var userID: CKRecord.ID?
@@ -4528,7 +4528,7 @@ final class RoadmapStore: ObservableObject {
         isLoading = true
         loadFailed = false
         defer { isLoading = false }
-        #if !SKIP
+        #if os(iOS)
         isSignedIn = (try? await container.accountStatus()) == .available
         userID = try? await container.userRecordID()
         do {
@@ -4627,7 +4627,7 @@ final class RoadmapStore: ObservableObject {
     }
 
     func toggleVote(for request: FeatureRequest) async {
-        #if !SKIP
+        #if os(iOS)
         guard let userID else {
             message = String(localized: "Sign in to iCloud in the Settings app to vote.")
             return
@@ -4693,7 +4693,7 @@ final class RoadmapStore: ObservableObject {
     }
 
     func suggest(title: String, details: String) async -> Bool {
-        #if !SKIP
+        #if os(iOS)
         guard userID != nil else {
             message = String(localized: "Sign in to iCloud in the Settings app to suggest a feature.")
             return false
@@ -4736,7 +4736,7 @@ final class RoadmapStore: ObservableObject {
         #endif
     }
 
-    #if !SKIP
+    #if os(iOS)
     private func fetchAll(_ query: CKQuery) async throws -> [CKRecord] {
         var records: [CKRecord] = []
         var (results, cursor) = try await database.records(matching: query)
@@ -5022,7 +5022,7 @@ struct SuggestFeatureView: View {
 
 // MARK: - App icon
 
-#if !SKIP
+#if os(iOS)
 enum AlternateIcon: String, CaseIterable, Identifiable {
     case standard = "Default", midnight = "Midnight", paper = "Paper", sunset = "Sunset", forest = "Forest", ocean = "Ocean"
 
@@ -5416,7 +5416,7 @@ struct AboutView: View {
 
             Section {
                 Button("Rate ReadTime") {
-                    #if !SKIP
+                    #if os(iOS)
                     if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
                         SKStoreReviewController.requestReview(in: scene)
                     }
@@ -5955,7 +5955,7 @@ struct OnboardingFirstBookStep: View {
 
 // MARK: - Ads
 
-#if !SKIP
+#if os(iOS)
 /// Google AdMob interstitials, shown when a reading session ends.
 /// IDs come from Info.plist (set in ReadTime/Config/ReadTime.xcconfig); they default to Google's test IDs.
 @MainActor
@@ -6182,7 +6182,7 @@ final class AdManager: NSObject, ObservableObject {
 }
 #endif
 
-#if !SKIP
+#if os(iOS)
 /// An adaptive AdMob banner that takes no space until an ad has loaded, and none at all for Premium users.
 struct AdBanner: View {
     @ObservedObject private var ads = AdManager.shared
@@ -6286,7 +6286,7 @@ extension View {
 
 /// Hides the keyboard when the user taps anywhere that isn't a text field, across the whole
 /// app (sheets included), without swallowing taps meant for buttons.
-#if !SKIP
+#if os(iOS)
 enum KeyboardDismissal {
     private static let handler = TapHandler()
 

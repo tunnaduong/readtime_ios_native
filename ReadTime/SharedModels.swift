@@ -203,7 +203,7 @@ struct BookCover: View {
 struct FigmaImage: View {
     let name: String
 
-    #if !SKIP
+    #if os(iOS)
     private var image: UIImage? {
         guard let url = Bundle.main.url(forResource: name, withExtension: "png") else { return nil }
         return UIImage(contentsOfFile: url.path)
@@ -211,7 +211,7 @@ struct FigmaImage: View {
     #endif
 
     var body: some View {
-        #if !SKIP
+        #if os(iOS)
         if let image {
             Image(uiImage: image)
                 .resizable()
@@ -243,7 +243,7 @@ struct CoverImage: View {
     let coverURL: String?
     /// Keep the downloaded image on disk. Search result thumbnails only stay in memory.
     var persist = true
-    #if !SKIP
+    #if os(iOS)
     @State var remoteImage: UIImage?
     #endif
 
@@ -252,7 +252,7 @@ struct CoverImage: View {
             if let coverName {
                 FigmaImage(name: coverName)
             } else {
-                #if !SKIP
+                #if os(iOS)
                 if let remoteImage {
                     Image(uiImage: remoteImage)
                         .resizable()
@@ -265,7 +265,7 @@ struct CoverImage: View {
                 #endif
             }
         }
-        #if !SKIP
+        #if os(iOS)
         .task(id: coverURL) {
             guard coverName == nil, let coverURL, let url = URL(string: coverURL) else {
                 remoteImage = nil
@@ -283,7 +283,7 @@ struct CoverImage: View {
 /// still show their cover offline.
 /// TODO(android): reimplement using a cross-platform image type once this is
 /// actually wired up on Android (its only call sites are gated to iOS for now).
-#if !SKIP
+#if os(iOS)
 enum CoverCache {
     private static let memory = NSCache<NSURL, NSData>()
 
@@ -353,7 +353,7 @@ extension Color {
 
 private extension Color {
     init(light: (Double, Double, Double), dark: (Double, Double, Double)) {
-        #if !SKIP
+        #if os(iOS)
         self.init(uiColor: UIColor { traits in
             let c = traits.userInterfaceStyle == .dark ? dark : light
             return UIColor(red: c.0, green: c.1, blue: c.2, alpha: 1)
