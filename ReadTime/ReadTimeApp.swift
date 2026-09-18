@@ -4035,13 +4035,14 @@ struct SettingsView: View {
                     Button {
                         if let url = AppInfo.writeReviewURL {
                             openURL(url)
+                        } else {
+                            #if !SKIP
+                            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                                SKStoreReviewController.requestReview(in: scene)
+                            }
+                            #endif
+                            // TODO(android): fall back to the Play In-App Review API here.
                         }
-                        #if !SKIP
-                        else if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
-                            SKStoreReviewController.requestReview(in: scene)
-                        }
-                        #endif
-                        // TODO(android): fall back to the Play In-App Review API here.
                     } label: {
                         Label("Leave a Review", systemImage: "star")
                             .foregroundStyle(Color.readTimeText)
