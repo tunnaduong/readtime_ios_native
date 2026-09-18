@@ -88,6 +88,8 @@ jobs:
       # like `6.1`/`6.2.3`, not `6.1.0`. Using 6.2.3, the newest listed.
       - name: Install the Swift Android SDK
         run: |
+          mkdir -p "$HOME/.swiftpm/swift-sdks"
+          chmod -R u+rwX "$HOME/.swiftpm"
           skip android sdk install --version 6.2.3 || {
             echo "::group::skip-install log"
             cat /tmp/skip-install-*.txt 2>/dev/null || echo "(no log file found)"
