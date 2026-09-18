@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(CryptoKit)
 import CryptoKit
+#endif
 import UserNotifications
 import UniformTypeIdentifiers
 // Frameworks with no Skip/Android equivalent: Skip transpiles this file to
@@ -102,9 +104,19 @@ enum CloudKitWebService {
         let bodyData = try JSONSerialization.data(withJSONObject: body)
         let subpath = "/database/1/\(config.containerID)/\(config.environment)/public/\(path)"
         let date = ISO8601DateFormatter().string(from: Date())
+        #if canImport(CryptoKit)
         let bodyHash = Data(SHA256.hash(data: bodyData)).base64EncodedString()
         let message = "\(date):\(bodyHash):\(subpath)"
         let signature = try sign(message: message, privateKeyPEM: config.privateKeyPEM)
+        #else
+        // TODO(android): CryptoKit doesn't exist under Skip Fuse's Android
+        // cross-compile ("no such module 'CryptoKit'"), so there's currently
+        // no SHA-256/ECDSA available to sign CloudKit Web Services requests
+        // on Android at all — needs a pure-Swift implementation or real
+        // Kotlin/Java crypto interop (the java.security attempt tried
+        // earlier didn't compile under Fuse either; see `sign` below).
+        throw ServiceError.notConfigured
+        #endif
 
         var request = URLRequest(url: URL(string: "https://api.apple-cloudkit.com\(subpath)")!)
         request.httpMethod = "POST"
@@ -121,22 +133,21 @@ enum CloudKitWebService {
         return (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
 
+    #if canImport(CryptoKit)
     /// ECDSA P-256/SHA-256 signature over `message`, base64-encoded, per CloudKit
-    /// Web Services' server-to-server auth scheme.
-    /// Unverified. A `java.security`-based fallback was tried here for Android
-    /// (fully-qualified Kotlin/Java calls, per Skip's docs) but doesn't compile
-    /// under Skip Fuse mode ("cannot find 'java' in scope", "value of type
-    /// 'Data' has no member 'kotlin'") — that calling convention is apparently
-    /// for Skip's other (Lite/transpile) mode, not Fuse's native-Swift-on-Android
-    /// build. TODO(android): find Skip Fuse's actual Java/Kotlin interop syntax
-    /// (likely via SkipBridge) and redo the Android branch; for now this relies
-    /// on CryptoKit's `P256.Signing` also being available under Skip Fuse, which
-    /// is itself unconfirmed.
+    /// Web Services' server-to-server auth scheme. CryptoKit doesn't exist
+    /// under Skip Fuse's Android cross-compile, so this only ever runs where
+    /// `canImport(CryptoKit)` is true — which, since `CloudKitWebService` is
+    /// itself Android-only (see the #if !os(iOS) above), is never, in
+    /// practice, until there's a real Android crypto path (see the TODO on
+    /// `request` above). Kept so the real logic is documented and easy to
+    /// wire back in once that exists.
     private static func sign(message: String, privateKeyPEM: String) throws -> String {
         let key = try P256.Signing.PrivateKey(pemRepresentation: privateKeyPEM)
         let signature = try key.signature(for: Data(message.utf8))
         return signature.derRepresentation.base64EncodedString()
     }
+    #endif
 }
 #endif
 

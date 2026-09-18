@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(CryptoKit)
 import CryptoKit
+#endif
 #if canImport(UIKit)
 import UIKit
 #endif
