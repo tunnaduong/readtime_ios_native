@@ -79,7 +79,13 @@ jobs:
       # which 404s at download.swift.org (not actually released yet) —
       # confirmed 6.1 exists there.
       - name: Install the Swift Android SDK
-        run: skip android sdk install --version 6.1.0
+        run: |
+          skip android sdk install --version 6.1.0 || {
+            echo "::group::skip-install log"
+            cat /tmp/skip-install-*.txt 2>/dev/null || echo "(no log file found)"
+            echo "::endgroup::"
+            exit 1
+          }
 
       # Skip Fuse's real Android artifact: cross-compiles this same Swift
       # source natively for Android via the SDK above. Headless — no
