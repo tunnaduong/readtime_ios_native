@@ -187,6 +187,7 @@
 				748FBA06DC2BA1CB272A70F4 /* Frameworks */,
 				48CD839C28984852A000067D /* Resources */,
 				A1C0FFEE0000000000000W60 /* Embed Foundation Extensions */,
+				A1C0FFEE00000000000000S1 /* Fix Embedded Framework MinimumOSVersion */,
 			);
 			buildRules = (
 			);
@@ -305,6 +306,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A1C0FFEE00000000000000S1 /* Fix Embedded Framework MinimumOSVersion */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Fix Embedded Framework MinimumOSVersion";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/fix_embedded_framework_min_os.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		BDA0D6F150147077A058FA27 /* Sources */ = {

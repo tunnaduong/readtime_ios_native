@@ -2,16 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>AdMobAppOpenUnitID</key>
+	<string>$(ADMOB_APP_OPEN_UNIT_ID)</string>
+	<key>AdMobBannerUnitID</key>
+	<string>$(ADMOB_BANNER_UNIT_ID)</string>
+	<key>AdMobInterstitialUnitID</key>
+	<string>$(ADMOB_INTERSTITIAL_UNIT_ID)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<key>CFBundleLocalizations</key>
-	<array>
-		<string>en</string>
-		<string>vi</string>
-		<string>es</string>
-		<string>ja</string>
-		<string>zh-Hans</string>
-	</array>
 	<key>CFBundleDisplayName</key>
 	<string>ReadTime</string>
 	<key>CFBundleExecutable</key>
@@ -20,6 +18,14 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>vi</string>
+		<string>es</string>
+		<string>ja</string>
+		<string>zh-Hans</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
@@ -27,15 +33,17 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>3</string>
 	<key>GADApplicationIdentifier</key>
 	<string>$(ADMOB_APP_ID)</string>
-	<key>AdMobAppOpenUnitID</key>
-	<string>$(ADMOB_APP_OPEN_UNIT_ID)</string>
-	<key>AdMobBannerUnitID</key>
-	<string>$(ADMOB_BANNER_UNIT_ID)</string>
-	<key>AdMobInterstitialUnitID</key>
-	<string>$(ADMOB_INTERSTITIAL_UNIT_ID)</string>
+	<key>GoogleBooksAPIKey</key>
+	<string>$(GOOGLE_BOOKS_API_KEY)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>ReadTime uses this to show ads that are more relevant to you. Ads keep the app free.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>
@@ -43,14 +51,6 @@
 			<string>cstr6suwn9.skadnetwork</string>
 		</dict>
 	</array>
-	<key>GoogleBooksAPIKey</key>
-	<string>$(GOOGLE_BOOKS_API_KEY)</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>ReadTime uses this to show ads that are more relevant to you. Ads keep the app free.</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
