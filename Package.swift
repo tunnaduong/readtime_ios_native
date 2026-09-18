@@ -11,7 +11,7 @@ let package = Package(
     name: "ReadTimeNative",
     defaultLocalization: "en",
     // macOS is required here even though this app never ships for macOS:
-    // Skip Fuse's own dependencies (SkipUI, SkipFuse, the skipstone plugin)
+    // Skip Fuse's own dependencies (SkipFuseUI, the skipstone plugin)
     // declare a macOS minimum, and `swift build` compiles this target
     // natively for the host (macOS, on Skip's own CI/local dev flow) as
     // part of its normal build — the actual Android build is a separate
@@ -26,8 +26,12 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://source.skip.tools/skip.git", from: "1.0.0"),
-        .package(url: "https://source.skip.tools/skip-ui.git", from: "1.0.0"),
-        .package(url: "https://source.skip.tools/skip-fuse.git", from: "1.0.0"),
+        // SkipFuseUI (not SkipUI/skip-ui, which is for Skip's other, Lite
+        // transpile mode): CI's Android cross-compile failed with "no such
+        // module 'SwiftUI'" using skip-ui — SkipUI's own package built fine
+        // standalone (libSkipUI.so), it just doesn't map `import SwiftUI`
+        // onto itself for a Fuse app the way SkipFuseUI does.
+        .package(url: "https://github.com/skiptools/skip-fuse-ui.git", from: "1.0.0"),
         // TODO(android): re-add "https://source.skip.dev/skip-revenue.git" for
         // cross-platform purchases once the toolchain here can resolve it —
         // its manifest requires Swift tools-version 6.1, which was
@@ -40,8 +44,7 @@ let package = Package(
         .target(
             name: "ReadTime",
             dependencies: [
-                .product(name: "SkipUI", package: "skip-ui"),
-                .product(name: "SkipFuse", package: "skip-fuse"),
+                .product(name: "SkipFuseUI", package: "skip-fuse-ui"),
             ],
             path: "ReadTime",
             exclude: [
