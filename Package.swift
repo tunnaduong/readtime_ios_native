@@ -32,6 +32,11 @@ let package = Package(
         // standalone (libSkipUI.so), it just doesn't map `import SwiftUI`
         // onto itself for a Fuse app the way SkipFuseUI does.
         .package(url: "https://github.com/skiptools/skip-fuse-ui.git", from: "1.0.0"),
+        // Re-added after SkipFuseUI alone still left "no such module
+        // 'Combine'" (needed for ObservableObject/@Published) — trying
+        // whether declaring this, like skip-fuse-ui mapping SwiftUI,
+        // resolves Combine too.
+        .package(url: "https://github.com/skiptools/skip-fuse.git", from: "1.0.0"),
         // TODO(android): re-add "https://source.skip.dev/skip-revenue.git" for
         // cross-platform purchases once the toolchain here can resolve it —
         // its manifest requires Swift tools-version 6.1, which was
@@ -45,6 +50,7 @@ let package = Package(
             name: "ReadTime",
             dependencies: [
                 .product(name: "SkipFuseUI", package: "skip-fuse-ui"),
+                .product(name: "SkipFuse", package: "skip-fuse"),
             ],
             path: "ReadTime",
             exclude: [
