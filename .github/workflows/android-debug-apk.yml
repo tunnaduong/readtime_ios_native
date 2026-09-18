@@ -75,12 +75,14 @@ jobs:
 
       # The Swift Android SDK (a cross-compilation toolchain, separate from
       # the Xcode/host Swift toolchain) that `skip android build` needs.
-      # Pinned explicitly: letting it auto-resolve "latest" picked 6.4.0,
-      # which 404s at download.swift.org (not actually released yet) —
-      # confirmed 6.1 exists there.
+      # Pinned explicitly: auto-resolving "latest" picked 6.4.0, which
+      # doesn't exist. It installs via a Homebrew Cask from skiptools'
+      # own tap (skiptools/homebrew-skip); "6.1.0" isn't a valid cask
+      # version there — checked the tap directly, versions are named
+      # like `6.1`/`6.2.3`, not `6.1.0`. Using 6.2.3, the newest listed.
       - name: Install the Swift Android SDK
         run: |
-          skip android sdk install --version 6.1.0 || {
+          skip android sdk install --version 6.2.3 || {
             echo "::group::skip-install log"
             cat /tmp/skip-install-*.txt 2>/dev/null || echo "(no log file found)"
             echo "::endgroup::"
