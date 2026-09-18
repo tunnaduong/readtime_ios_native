@@ -2327,7 +2327,9 @@ struct AddBookView: View {
                                 Button("Remove Cover", role: .destructive) {
                                     coverName = nil
                                     coverURL = nil
+                                    #if os(iOS)
                                     photoItem = nil
+                                    #endif
                                 }
                             }
                             if let photoError {
@@ -4185,8 +4187,8 @@ struct SettingsView: View {
                         Spacer()
                         if purchases.isWorking {
                             ProgressView()
-                        } else if let product = purchases.premiumProduct {
-                            Text(product.displayPrice)
+                        } else if let price = purchases.priceDescription {
+                            Text(price)
                                 .font(.subheadline.weight(.semibold))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
