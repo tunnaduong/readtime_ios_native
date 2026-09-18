@@ -5,13 +5,12 @@ name: Android debug APK
 # 2. Committed into the `prerelease-android` branch, so there's always a
 #    stable link to the latest debug build without digging through run history.
 #
-# UNVERIFIED: written without access to a macOS/Android CI runner or the Skip
-# CLI, so the exact `skip`/Gradle invocation below is a best-effort based on
-# Skip's documented CLI (https://skip.dev/docs/) and standard Gradle/Android
-# conventions, not a tested pipeline. The first run will very likely need
-# fixing up — see README.md's "Android (Skip)" section for what's still
-# stubbed (ads, photo picker, purchases need real keys) before a debug build
-# even fully starts.
+# Iterated directly against real GitHub Actions runs (no local macOS/Android
+# toolchain available while developing this) — the `swift build` step
+# (Swift compile + Skip's bridging/transpilation) now succeeds; the `skip
+# gradle` step is the newest addition and not yet confirmed. See README.md's
+# "Android (Skip)" section for what's still stubbed (ads, photo picker,
+# purchases need real keys) before this produces a fully working app.
 
 on:
   push:
@@ -65,12 +64,11 @@ jobs:
       - name: Build Swift package (generates the Android Gradle project)
         run: swift build --product ReadTime
 
-      - name: Grant execute permission to gradlew
-        run: chmod +x Android/gradlew
-
+      # Per Skip's docs, the Android build is a separate step from `swift
+      # build` — `skip gradle` (not a raw `./gradlew`; Android/gradlew isn't
+      # generated/checked in) wraps Gradle for the generated project.
       - name: Assemble Android debug APK
-        working-directory: Android
-        run: ./gradlew assembleDebug --no-daemon
+        run: skip gradle -p Android/ assembleDebug
 
       - name: Locate the built APK
         id: apk
