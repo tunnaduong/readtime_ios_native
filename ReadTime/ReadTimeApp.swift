@@ -142,9 +142,9 @@ enum CloudKitWebService {
 struct ReadTimeApp: App {
     @StateObject var store = ReadingStore()
     @StateObject var purchases = PurchaseManager()
-    @Environment(\.scenePhase) private var scenePhase
-    @AppStorage(AppearanceMode.storageKey) private var appearance = AppearanceMode.system
-    @AppStorage(CloudBackup.syncEnabledKey) private var iCloudSyncEnabled = false
+    @Environment(\.scenePhase) var scenePhase
+    @AppStorage(AppearanceMode.storageKey) var appearance = AppearanceMode.system
+    @AppStorage(CloudBackup.syncEnabledKey) var iCloudSyncEnabled = false
     /// Set when the app goes to the background; the next `.active` counts as "returning to the app".
     @State var wasInBackground = false
 
@@ -188,7 +188,7 @@ struct ReadTimeApp: App {
             store.save()
             // Keep the iCloud copy current whenever the user leaves the app.
             if iCloudSyncEnabled {
-                try? CloudBackup.backUp(store)
+                try? CloudBackup.backUp(store.snapshot)
             }
         }
     }
@@ -658,8 +658,8 @@ final class ReadingStore: ObservableObject {
 // MARK: - App shell
 
 struct ReadTimeTabView: View {
-    @EnvironmentObject private var store: ReadingStore
-    @EnvironmentObject private var purchases: PurchaseManager
+    @EnvironmentObject var store: ReadingStore
+    @EnvironmentObject var purchases: PurchaseManager
     @State var showingPaywall = false
     @State var showingBookPicker = false
     @State var showingSession = false
@@ -747,8 +747,8 @@ struct ReadTimeTabView: View {
 // MARK: - Home
 
 struct HomeView: View {
-    @EnvironmentObject private var store: ReadingStore
-    @EnvironmentObject private var purchases: PurchaseManager
+    @EnvironmentObject var store: ReadingStore
+    @EnvironmentObject var purchases: PurchaseManager
     @Binding var showingBookPicker: Bool
     @Binding var showingSession: Bool
     @Binding var showingJournal: Bool
@@ -874,7 +874,7 @@ struct HomeView: View {
 }
 
 struct DailyGoalCard: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -914,7 +914,7 @@ struct DailyGoalCard: View {
 
 /// Monday to Sunday of this week, with a check on each day the daily goal was met.
 struct WeekTracker: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     /// Colour for today's column.
     var todayColor: Color = .readTimePurple
     /// Give every day its own tile, as on the session summary.
@@ -1067,7 +1067,7 @@ struct JournalPreview: View {
 }
 
 struct JournalView: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     @State var editingEntry: JournalEntry?
 
     var body: some View {
@@ -1173,8 +1173,8 @@ struct JournalEntryRow: View {
 }
 
 struct JournalEntryEditor: View {
-    @EnvironmentObject private var store: ReadingStore
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var store: ReadingStore
+    @Environment(\.dismiss) var dismiss
     @State var entry: JournalEntry
     @State var confirmingDelete = false
     let isNew: Bool
@@ -1260,7 +1260,7 @@ struct JournalEntryEditor: View {
 // MARK: - Goals
 
 struct GoalsView: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     @State var creating: GoalKind?
 
     var body: some View {
@@ -1354,7 +1354,7 @@ struct GoalBadge: View {
 
 /// The current reading routine on the Goals tab, or a prompt to create one.
 struct RoutineGoalCard: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     let onCreate: (GoalKind) -> Void
 
     var body: some View {
@@ -1444,7 +1444,7 @@ struct GoalSummaryCard: View {
 }
 
 struct ReminderCard: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
 
     private var reminderBinding: Binding<Bool> {
         Binding(
@@ -1582,8 +1582,8 @@ struct CreateGoalFlow: View {
     private enum Step { case dailySpec, customDays, routine, preview }
 
     let kind: GoalKind
-    @EnvironmentObject private var store: ReadingStore
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var store: ReadingStore
+    @Environment(\.dismiss) var dismiss
     @State var draft: GoalDraft
     @State var stepIndex = 0
 
@@ -1681,7 +1681,7 @@ struct CreateGoalFlow: View {
     }
 }
 
-private struct GoalSection<Content: View>: View {
+struct GoalSection<Content: View>: View {
     let title: LocalizedStringKey
     let systemImage: String
     @ViewBuilder let content: () -> Content
@@ -1828,7 +1828,7 @@ struct WeekdaysSection: View {
 }
 
 struct RoutineSection: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     @Binding var draft: GoalDraft
     @State var askingCustom = false
     @State var customText = ""
@@ -1903,7 +1903,7 @@ struct RoutineSection: View {
 
 struct ChooseStartDaySheet: View {
     @Binding var date: Date
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
     @State var selection: Date
 
     init(date: Binding<Date>) {
@@ -2026,7 +2026,7 @@ struct GoalPreview: View {
     }
 }
 
-private struct PreviewFact: View {
+struct PreviewFact: View {
     let title: LocalizedStringKey
     let systemImage: String
     let value: String
@@ -2050,7 +2050,7 @@ private struct PreviewFact: View {
 // MARK: - Library
 
 struct LibraryView: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     @State var selection: BookStatus? = nil
     @State var showingAddBook = false
     @State var editingBook: Book?
@@ -2185,8 +2185,8 @@ struct BookLibraryCard: View {
 }
 
 struct AddBookView: View {
-    @EnvironmentObject private var store: ReadingStore
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var store: ReadingStore
+    @Environment(\.dismiss) var dismiss
     /// The book being edited, or nil when adding a new one.
     private let editing: Book?
     @State var title: String
@@ -2633,7 +2633,7 @@ enum BookSearch {
 // MARK: - Stats
 
 struct StatsView: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -2763,7 +2763,7 @@ struct StarRatingPicker: View {
 
 /// A month grid where each day shows the cover of the book read most that day.
 struct ReadingCalendarCard: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     @State var monthOffset = 0
 
     private var calendar: Calendar {
@@ -2914,7 +2914,7 @@ enum TrendPeriod: String, CaseIterable, Identifiable {
 
 /// Pages, time and finished books for a chosen period, compared with the period before it.
 struct TrendsSection: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     @State var period = TrendPeriod.week
     @State var offset = 0
 
@@ -3095,7 +3095,7 @@ struct TrendCard: View {
 }
 
 struct InsightsCard: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
 
     var body: some View {
         VStack(spacing: 0) {
@@ -3159,8 +3159,8 @@ struct StatTile: View {
 // MARK: - Reading flow
 
 struct BookPickerView: View {
-    @EnvironmentObject private var store: ReadingStore
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var store: ReadingStore
+    @Environment(\.dismiss) var dismiss
     let onSelect: (Book) -> Void
 
     private var readableBooks: [Book] {
@@ -3215,8 +3215,8 @@ struct BookPickerView: View {
 }
 
 struct ReadingSessionView: View {
-    @EnvironmentObject private var store: ReadingStore
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var store: ReadingStore
+    @Environment(\.dismiss) var dismiss
     let bookID: UUID
     @State var startedAt = Date()
     @State var showingFinish = false
@@ -3323,8 +3323,8 @@ struct ReadingSessionView: View {
 }
 
 struct FinishSessionView: View {
-    @EnvironmentObject private var store: ReadingStore
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var store: ReadingStore
+    @Environment(\.dismiss) var dismiss
     let bookID: UUID
     let seconds: TimeInterval
     let onFinished: () -> Void
@@ -3437,7 +3437,7 @@ struct FinishSessionView: View {
 
 /// Shown after a session is saved: how today's reading moved the daily, book, and yearly goals.
 struct GoalsUpdatedView: View {
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     let bookID: UUID
     let onConfirm: () -> Void
 
@@ -3600,19 +3600,17 @@ enum CloudBackup {
         try? latestSnapshot().savedAt
     }
 
-    @MainActor
-    static func backUp(_ store: ReadingStore) throws {
+    static func backUp(_ snapshot: ReadingSnapshot) throws {
         guard isAvailable else { throw BackupError.iCloudUnavailable }
-        let data = try JSONEncoder().encode(store.snapshot)
+        let data = try JSONEncoder().encode(snapshot)
         NSUbiquitousKeyValueStore.default.set(data, forKey: backupKey)
         NSUbiquitousKeyValueStore.default.synchronize()
     }
 
-    @MainActor
-    static func restore(into store: ReadingStore) throws {
+    static func restore() throws -> ReadingSnapshot {
         guard isAvailable else { throw BackupError.iCloudUnavailable }
         NSUbiquitousKeyValueStore.default.synchronize()
-        store.restore(from: try latestSnapshot())
+        return try latestSnapshot()
     }
 
     private static func latestSnapshot() throws -> ReadingSnapshot {
@@ -3653,15 +3651,13 @@ enum CloudBackup {
         try? latestSnapshot().savedAt
     }
 
-    @MainActor
-    static func backUp(_ store: ReadingStore) throws {
-        let data = try JSONEncoder().encode(store.snapshot)
+    static func backUp(_ snapshot: ReadingSnapshot) throws {
+        let data = try JSONEncoder().encode(snapshot)
         UserDefaults.standard.set(data, forKey: backupKey)
     }
 
-    @MainActor
-    static func restore(into store: ReadingStore) throws {
-        store.restore(from: try latestSnapshot())
+    static func restore() throws -> ReadingSnapshot {
+        try latestSnapshot()
     }
 
     private static func latestSnapshot() throws -> ReadingSnapshot {
@@ -3926,12 +3922,12 @@ enum AppInfo {
 }
 
 struct SettingsView: View {
-    @EnvironmentObject private var store: ReadingStore
-    @EnvironmentObject private var purchases: PurchaseManager
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
-    @AppStorage(AppearanceMode.storageKey) private var appearance = AppearanceMode.system
-    @AppStorage(CloudBackup.syncEnabledKey) private var iCloudSyncEnabled = false
+    @EnvironmentObject var store: ReadingStore
+    @EnvironmentObject var purchases: PurchaseManager
+    @Environment(\.dismiss) var dismiss
+    @Environment(\.openURL) var openURL
+    @AppStorage(AppearanceMode.storageKey) var appearance = AppearanceMode.system
+    @AppStorage(CloudBackup.syncEnabledKey) var iCloudSyncEnabled = false
     @State var lastBackup = CloudBackup.lastBackupDate
     @State var confirmingRestore = false
     @State var backupMessage: String?
@@ -4070,7 +4066,7 @@ struct SettingsView: View {
             }
             .confirmationDialog("Restore from iCloud?", isPresented: $confirmingRestore, titleVisibility: .visible) {
                 Button("Replace Data on This iPhone", role: .destructive) {
-                    run { try CloudBackup.restore(into: store) }
+                    run { store.restore(from: try CloudBackup.restore()) }
                     if backupMessage == nil { backupMessage = String(localized: "Your reading data was restored.") }
                 }
             } message: {
@@ -4184,10 +4180,10 @@ struct SettingsView: View {
                 Label("Sync with iCloud", systemImage: "icloud")
             }
             .onChange(of: iCloudSyncEnabled) { enabled in
-                if enabled { run { try CloudBackup.backUp(store) } }
+                if enabled { run { try CloudBackup.backUp(store.snapshot) } }
             }
             Button {
-                run { try CloudBackup.backUp(store) }
+                run { try CloudBackup.backUp(store.snapshot) }
                 if backupMessage == nil { backupMessage = String(localized: "Your reading data was backed up.") }
             } label: {
                 Label("Back Up Now", systemImage: "icloud.and.arrow.up")
@@ -4281,8 +4277,8 @@ enum ReferralReport {
 // MARK: - Premium paywall
 
 struct PremiumPaywallView: View {
-    @EnvironmentObject private var purchases: PurchaseManager
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var purchases: PurchaseManager
+    @Environment(\.dismiss) var dismiss
     @State var eligibleForTrial = false
 
     private struct Benefit: Identifiable {
@@ -4932,7 +4928,7 @@ struct FeatureRequestDetailView: View {
 
 struct SuggestFeatureView: View {
     @ObservedObject var roadmap: RoadmapStore
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
     @State var title = ""
     @State var details = ""
     @State var isSending = false
@@ -5249,7 +5245,7 @@ enum LibraryTransfer {
 struct ImportExportView: View {
     private enum Picking { case csv, backup }
 
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     @State var backupURL: URL?
     @State var csvURL: URL?
     @State var picking: Picking?
@@ -5347,7 +5343,7 @@ struct ImportExportView: View {
 }
 
 struct AboutView: View {
-    @Environment(\.openURL) private var openURL
+    @Environment(\.openURL) var openURL
 
     var body: some View {
         Form {
@@ -5393,7 +5389,7 @@ struct AboutView: View {
 struct OnboardingView: View {
     private enum Step { case welcome, source, goal, importBooks, firstBook }
 
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     @State var step = Step.welcome
 
     var body: some View {
@@ -5433,7 +5429,7 @@ struct OnboardingView: View {
     }
 }
 
-private struct OnboardingWelcomeStep: View {
+struct OnboardingWelcomeStep: View {
     let onDemo: () -> Void
     let onStartFresh: () -> Void
 
@@ -5501,7 +5497,7 @@ private struct OnboardingWelcomeStep: View {
 }
 
 /// Shared layout for the onboarding steps after the welcome screen.
-private struct OnboardingStepLayout<Content: View, Actions: View>: View {
+struct OnboardingStepLayout<Content: View, Actions: View>: View {
     let progress: Int
     var total = 4
     let title: LocalizedStringKey
@@ -5561,7 +5557,7 @@ private struct OnboardingStepLayout<Content: View, Actions: View>: View {
     }
 }
 
-private struct OnboardingSourceStep: View {
+struct OnboardingSourceStep: View {
     enum Source: String, CaseIterable, Identifiable {
         case appStore, search, social, video, friends, other
 
@@ -5590,7 +5586,7 @@ private struct OnboardingSourceStep: View {
         }
     }
 
-    @AppStorage("onboarding_referral_source") private var storedSource = ""
+    @AppStorage("onboarding_referral_source") var storedSource = ""
     @State var selection: Source?
     let onBack: () -> Void
     let onContinue: () -> Void
@@ -5652,8 +5648,8 @@ private struct OnboardingSourceStep: View {
     }
 }
 
-private struct OnboardingImportStep: View {
-    @EnvironmentObject private var store: ReadingStore
+struct OnboardingImportStep: View {
+    @EnvironmentObject var store: ReadingStore
     let onBack: () -> Void
     let onContinue: () -> Void
     @State var picking = false
@@ -5730,10 +5726,10 @@ private struct OnboardingImportStep: View {
     }
 }
 
-private struct OnboardingGoalStep: View {
+struct OnboardingGoalStep: View {
     private enum Choice { case minutesPerDay, booksPerYear }
 
-    @EnvironmentObject private var store: ReadingStore
+    @EnvironmentObject var store: ReadingStore
     let onBack: () -> Void
     let onContinue: () -> Void
 
@@ -5791,7 +5787,7 @@ private struct OnboardingGoalStep: View {
     }
 }
 
-private struct GoalChoiceCard<Accessory: View>: View {
+struct GoalChoiceCard<Accessory: View>: View {
     let systemImage: String
     let title: LocalizedStringKey
     let subtitle: LocalizedStringKey
@@ -5838,8 +5834,8 @@ private struct GoalChoiceCard<Accessory: View>: View {
     }
 }
 
-private struct OnboardingFirstBookStep: View {
-    @EnvironmentObject private var store: ReadingStore
+struct OnboardingFirstBookStep: View {
+    @EnvironmentObject var store: ReadingStore
     let onBack: () -> Void
     let onFinish: () -> Void
     @State var addingBook = false
