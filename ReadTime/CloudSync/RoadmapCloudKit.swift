@@ -20,10 +20,10 @@ struct FeatureRequest: Identifiable, Hashable {
 
         var title: LocalizedStringKey {
             switch self {
-            case .inReview: "In Review"
-            case .planned: "Planned"
-            case .inProgress: "In Progress"
-            case .completed: "Completed"
+            case .inReview: LocalizedStringKey("In Review")
+            case .planned: LocalizedStringKey("Planned")
+            case .inProgress: LocalizedStringKey("In Progress")
+            case .completed: LocalizedStringKey("Completed")
             }
         }
 
@@ -235,9 +235,9 @@ private enum CloudKitWebServices {
     }
 
     static func fieldValue(_ record: [String: Any], _ key: String) -> Any? {
-        (record["fields"] as? [String: Any])
-            .flatMap { $0[key] as? [String: Any] }
-            .flatMap { $0["value"] }
+        guard let fields = record["fields"] as? [String: Any],
+              let field = fields[key] as? [String: Any] else { return nil }
+        return field["value"]
     }
 }
 
@@ -272,7 +272,7 @@ final class RoadmapStore: ObservableObject {
             let featureRecords = (featureResponse["records"] as? [[String: Any]]) ?? []
             let features = featureRecords
                 .filter { (CloudKitWebServices.fieldValue($0, "listed") as? Int ?? 1) != 0 }
-                .map { record -> FeatureRequest in
+                .map { (record: [String: Any]) -> FeatureRequest in
                     let name = record["recordName"] as? String ?? UUID().uuidString
                     return FeatureRequest(
                         id: name,

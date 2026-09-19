@@ -27,6 +27,16 @@
 		A1C0FFEE0000000000000W41 /* i-owe-you-one.png in Resources (widget) */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W31 /* i-owe-you-one.png (widget) */; };
 		A1C0FFEE0000000000000W42 /* steal-like-an-artist.png in Resources (widget) */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W32 /* steal-like-an-artist.png (widget) */; };
 		A1C0FFEE0000000000000W43 /* this-is-going-to-hurt.png in Resources (widget) */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000W33 /* this-is-going-to-hurt.png (widget) */; };
+		B2C0FFEE0000000000000101 /* AdBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000001 /* AdBanner.swift */; };
+		B2C0FFEE0000000000000102 /* AdManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000002 /* AdManager.swift */; };
+		B2C0FFEE0000000000000103 /* RoadmapCloudKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000003 /* RoadmapCloudKit.swift */; };
+		B2C0FFEE0000000000000104 /* AddBookPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000004 /* AddBookPhotoPicker.swift */; };
+		B2C0FFEE0000000000000105 /* PlatformBits.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000005 /* PlatformBits.swift */; };
+		B2C0FFEE0000000000000106 /* Portable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000006 /* Portable.swift */; };
+		B2C0FFEE0000000000000107 /* FilePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000007 /* FilePicker.swift */; };
+		B2C0FFEE0000000000000108 /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000008 /* PurchaseManager.swift */; };
+		B2C0FFEE0000000000000109 /* ChartViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000009 /* ChartViews.swift */; };
+		B2C0FFEE0000000000000110 /* AndroidRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000010 /* AndroidRoot.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +66,16 @@
 		A1C0FFEE0000000000000W31 /* i-owe-you-one.png (widget) */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "i-owe-you-one.png"; path = "ReadTime/Resources/i-owe-you-one.png"; sourceTree = SOURCE_ROOT; };
 		A1C0FFEE0000000000000W32 /* steal-like-an-artist.png (widget) */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "steal-like-an-artist.png"; path = "ReadTime/Resources/steal-like-an-artist.png"; sourceTree = SOURCE_ROOT; };
 		A1C0FFEE0000000000000W33 /* this-is-going-to-hurt.png (widget) */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "this-is-going-to-hurt.png"; path = "ReadTime/Resources/this-is-going-to-hurt.png"; sourceTree = SOURCE_ROOT; };
+		B2C0FFEE0000000000000001 /* AdBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AdBanner.swift; path = Ads/AdBanner.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000002 /* AdManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AdManager.swift; path = Ads/AdManager.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000003 /* RoadmapCloudKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RoadmapCloudKit.swift; path = CloudSync/RoadmapCloudKit.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000004 /* AddBookPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AddBookPhotoPicker.swift; path = Media/AddBookPhotoPicker.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000005 /* PlatformBits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlatformBits.swift; path = PlatformUtil/PlatformBits.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000006 /* Portable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Portable.swift; path = PlatformUtil/Portable.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000007 /* FilePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FilePicker.swift; path = PlatformUtil/FilePicker.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000008 /* PurchaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PurchaseManager.swift; path = Purchases/PurchaseManager.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000009 /* ChartViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChartViews.swift; path = Stats/ChartViews.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000010 /* AndroidRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AndroidRoot.swift; path = Android/AndroidRoot.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -144,6 +164,16 @@
 				037CC1117BA62E798947C2DC /* ReadTimeApp.swift */,
 				6F56CA98F6B5657A91FBF51C /* Info.plist */,
 				A1C0FFEE0000000000000W11 /* SharedModels.swift */,
+				B2C0FFEE0000000000000001 /* AdBanner.swift */,
+				B2C0FFEE0000000000000002 /* AdManager.swift */,
+				B2C0FFEE0000000000000003 /* RoadmapCloudKit.swift */,
+				B2C0FFEE0000000000000004 /* AddBookPhotoPicker.swift */,
+				B2C0FFEE0000000000000005 /* PlatformBits.swift */,
+				B2C0FFEE0000000000000006 /* Portable.swift */,
+				B2C0FFEE0000000000000007 /* FilePicker.swift */,
+				B2C0FFEE0000000000000008 /* PurchaseManager.swift */,
+				B2C0FFEE0000000000000009 /* ChartViews.swift */,
+				B2C0FFEE0000000000000010 /* AndroidRoot.swift */,
 				A1C0FFEE00000000000000G1 /* Config */,
 				A1C0FFEE00000000000000F2 /* ReadTime.entitlements */,
 				A1C0FFEE00000000000000F1 /* Localizable.xcstrings */,
@@ -313,6 +343,16 @@
 			files = (
 				A1C0FFEE0000000000000W01 /* SharedModels.swift in Sources */,
 				90919D7DD9C0CCEAC81EE5D0 /* ReadTimeApp.swift in Sources */,
+				B2C0FFEE0000000000000101 /* AdBanner.swift in Sources */,
+				B2C0FFEE0000000000000102 /* AdManager.swift in Sources */,
+				B2C0FFEE0000000000000103 /* RoadmapCloudKit.swift in Sources */,
+				B2C0FFEE0000000000000104 /* AddBookPhotoPicker.swift in Sources */,
+				B2C0FFEE0000000000000105 /* PlatformBits.swift in Sources */,
+				B2C0FFEE0000000000000106 /* Portable.swift in Sources */,
+				B2C0FFEE0000000000000107 /* FilePicker.swift in Sources */,
+				B2C0FFEE0000000000000108 /* PurchaseManager.swift in Sources */,
+				B2C0FFEE0000000000000109 /* ChartViews.swift in Sources */,
+				B2C0FFEE0000000000000110 /* AndroidRoot.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -14,12 +14,12 @@ enum AlternateIcon: String, CaseIterable, Identifiable {
 
     var title: LocalizedStringKey {
         switch self {
-        case .standard: "Default"
-        case .midnight: "Midnight"
-        case .paper: "Paper"
-        case .sunset: "Sunset"
-        case .forest: "Forest"
-        case .ocean: "Ocean"
+        case .standard: LocalizedStringKey("Default")
+        case .midnight: LocalizedStringKey("Midnight")
+        case .paper: LocalizedStringKey("Paper")
+        case .sunset: LocalizedStringKey("Sunset")
+        case .forest: LocalizedStringKey("Forest")
+        case .ocean: LocalizedStringKey("Ocean")
         }
     }
 
@@ -60,7 +60,7 @@ struct AppIconPickerView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityAddTraits(selection == icon ? .isSelected : [])
+                    .selectedTrait(selection == icon)
                 }
             }
             .padding(24)

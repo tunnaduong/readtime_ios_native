@@ -18,13 +18,17 @@ enum AppGroup {
         #else
         // Android has no app-group concept, and (unlike iOS) no widget extension needs to
         // share this data, so app-internal storage is the only path.
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        URL.applicationSupportDirectory
         #endif
     }
 
     /// Where the data lived before widgets existed; still read once so nothing is lost.
     static var legacyContainerURL: URL {
+        #if !SKIP
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        #else
+        URL.applicationSupportDirectory
+        #endif
     }
 }
 
@@ -37,9 +41,9 @@ enum BookStatus: String, CaseIterable, Identifiable, Codable {
 
     var title: LocalizedStringKey {
         switch self {
-        case .reading: "Reading"
-        case .wantToRead: "Want to Read"
-        case .finished: "Finished"
+        case .reading: LocalizedStringKey("Reading")
+        case .wantToRead: LocalizedStringKey("Want to Read")
+        case .finished: LocalizedStringKey("Finished")
         }
     }
 
@@ -90,8 +94,14 @@ struct ReadingActivity: Identifiable, Codable {
     var label: String {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return String(localized: "Today") }
-        if calendar.isDateInYesterday(date) { return String(localized: "Yesterday") }
+        if calendar.isYesterday(date) { return String(localized: "Yesterday") }
+        #if !SKIP
         return date.formatted(.dateTime.weekday(.abbreviated).day())
+        #else
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEEd")
+        return formatter.string(from: date)
+        #endif
     }
 }
 
@@ -170,7 +180,7 @@ enum LocalStore {
     static func save(_ snapshot: ReadingSnapshot) {
         do {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(snapshot).write(to: fileURL, options: .atomic)
+            try JSONEncoder().encode(snapshot).write(to: fileURL, options: Data.WritingOptions.atomic)
         } catch {
             print("ReadTime: couldn't save data: \(error)")
         }
@@ -255,7 +265,7 @@ struct CoverImage: View {
                 CoverPlaceholder()
             }
         }
-        .task(id: coverURL) {
+        .task(id: coverURL ?? "") {
             guard coverName == nil, let coverURL, let url = URL(string: coverURL) else {
                 remoteImage = nil
                 return
@@ -267,8 +277,17 @@ struct CoverImage: View {
 
 /// Downloads book covers once and keeps them in Application Support so saved books
 /// still show their cover offline.
+enum CoverError: Error {
+    case unreadableImage
+    case encodingFailed
+}
+
 enum CoverCache {
+    #if !SKIP
     private static let memory = NSCache<NSURL, NSData>()
+    #else
+    private static var memory: [URL: Data] = [:]
+    #endif
 
     private static var directory: URL {
         AppGroup.containerURL.appendingPathComponent("Covers", isDirectory: true)
@@ -290,17 +309,21 @@ enum CoverCache {
     private static let uploadScheme = "readtime-cover"
 
     static func saveUploadedCover(_ data: Data) throws -> String {
-        guard let image = UIImage(data: data) else { throw CocoaError(.fileReadCorruptFile) }
+        guard let image = UIImage(data: data) else { throw CoverError.unreadableImage }
         // Covers show at most ~170pt wide, so keep them small.
         let maxSide: CGFloat = 900
-        let scale = min(1, maxSide / max(image.size.width, image.size.height))
+        let scale = min(CGFloat(1), maxSide / max(image.size.width, image.size.height))
         let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        #if !SKIP
         let resized = UIGraphicsImageRenderer(size: size).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
-        guard let jpeg = resized.jpegData(compressionQuality: 0.85) else { throw CocoaError(.fileWriteUnknown) }
+        #else
+        let resized = image.preparingThumbnail(of: size) ?? image
+        #endif
+        guard let jpeg = resized.jpegData(compressionQuality: 0.85) else { throw CoverError.encodingFailed }
 
         let name = "\(UUID().uuidString).jpg"
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try jpeg.write(to: directory.appendingPathComponent(name), options: .atomic)
+        try jpeg.write(to: directory.appendingPathComponent(name), options: Data.WritingOptions.atomic)
         return "\(uploadScheme):\(name)"
     }
 
@@ -314,7 +337,11 @@ enum CoverCache {
             return image
         }
 
+        #if !SKIP
         var data = memory.object(forKey: url as NSURL) as Data?
+        #else
+        var data = memory[url]
+        #endif
         if data == nil {
             guard let (downloaded, response) = try? await URLSession.shared.data(from: url),
                   (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
@@ -322,29 +349,49 @@ enum CoverCache {
         }
         guard let data, let image = UIImage(data: data) else { return nil }
 
+        #if !SKIP
         memory.setObject(data as NSData, forKey: url as NSURL)
+        #else
+        memory[url] = data
+        #endif
         if persist {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try? data.write(to: file, options: .atomic)
+            try? data.write(to: file, options: Data.WritingOptions.atomic)
         }
         return image
     }
 }
 
 extension Color {
-    static let readTimePurple = Color(light: (0.412, 0.255, 0.776), dark: (0.604, 0.482, 0.918))
-    static let readTimeBackground = Color(light: (0.945, 0.961, 0.976), dark: (0.043, 0.047, 0.063))
-    static let readTimeCardBackground = Color(light: (1.0, 1.0, 1.0), dark: (0.110, 0.114, 0.137))
-    static let readTimeText = Color(light: (0.200, 0.255, 0.345), dark: (0.855, 0.878, 0.918))
+    static let readTimePurple = Color.adaptive(light: (0.412, 0.255, 0.776), dark: (0.604, 0.482, 0.918))
+    static let readTimeBackground = Color.adaptive(light: (0.945, 0.961, 0.976), dark: (0.043, 0.047, 0.063))
+    static let readTimeCardBackground = Color.adaptive(light: (1.0, 1.0, 1.0), dark: (0.110, 0.114, 0.137))
+    static let readTimeText = Color.adaptive(light: (0.200, 0.255, 0.345), dark: (0.855, 0.878, 0.918))
     static let readTimeGreen = Color(red: 0.012, green: 0.706, blue: 0.012)
     static let readTimeAmber = Color(red: 0.890, green: 0.490, blue: 0.075)
 }
 
-private extension Color {
-    init(light: (Double, Double, Double), dark: (Double, Double, Double)) {
-        self.init(uiColor: UIColor { traits in
+extension Color {
+    static func adaptive(light: (Double, Double, Double), dark: (Double, Double, Double)) -> Color {
+        #if !SKIP
+        Color(uiColor: UIColor { traits in
             let c = traits.userInterfaceStyle == .dark ? dark : light
             return UIColor(red: c.0, green: c.1, blue: c.2, alpha: 1)
         })
+        #else
+        // Resolved when composed, so it follows the app's light/dark scheme.
+        Color(colorImpl: {
+            let c = ColorScheme.fromMaterialTheme() == ColorScheme.dark ? dark : light
+            return androidx.compose.ui.graphics.Color(red: Float(c.0), green: Float(c.1), blue: Float(c.2), alpha: Float(1))
+        })
+        #endif
+    }
+}
+
+extension Calendar {
+    /// `isDateInYesterday` isn't available on Android (Skip), so this works on both.
+    func isYesterday(_ date: Date) -> Bool {
+        guard let yesterday = self.date(byAdding: .day, value: -1, to: Date()) else { return false }
+        return isDate(date, inSameDayAs: yesterday)
     }
 }
