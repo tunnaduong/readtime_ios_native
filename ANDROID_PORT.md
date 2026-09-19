@@ -1,0 +1,117 @@
+# Android port (via Skip) — status
+
+This documents the Android-port work done on the `android` branch. See
+`/root/.claude/plans/graceful-jumping-raccoon.md` (not tracked in git) for the
+full original plan; this file is the persisted, in-repo summary.
+
+## What this is
+
+ReadTime is a native SwiftUI iOS app. Rather than a Kotlin/Flutter/RN rewrite,
+Android support is being added via the [Skip framework](https://skip.dev),
+which transpiles Swift/SwiftUI into native Kotlin/Jetpack Compose from the
+same source. The goal is minimal Swift-code changes: one shared codebase,
+with `#if !SKIP … #else … #endif` seams around anything Android can't run
+natively (CloudKit, StoreKit, GoogleMobileAds, PhotosUI, WidgetKit, and a
+handful of raw UIKit calls).
+
+## Current state: Phase 0 (seam extraction), no toolchain available here
+
+This work was done in a sandbox with **no Swift, Skip, Gradle, or Android
+SDK installed** — nothing here has been built, transpiled, or run. It is
+pure Swift source restructuring, meant to be picked up on a real macOS +
+Xcode + Skip + Android Studio machine.
+
+**Not yet done:** running `skip init` to generate the actual Skip project
+layout (`Package.swift`, `Darwin/`, `Android/`, `Sources/ReadTimeNative/`).
+Skip's own docs recommend generating that fresh scaffold and moving existing
+files into it, rather than bolting Skip onto the current plain `.xcodeproj`
+in place — that's the next step, on a machine with the `skip` CLI.
+
+**Done:** the platform-only code inside `ReadTime/ReadTimeApp.swift` (5841
+lines, ~90 types) has been extracted into 7 new seam files, each iOS-real /
+Android-side guarded, so that once the file tree is moved into
+`Sources/ReadTimeNative/` per Skip's layout, the guards are already in place.
+
+## New files
+
+| File | iOS (`#if !SKIP`) | Android (`#else`) |
+|---|---|---|
+| `ReadTime/Purchases/PurchaseManager.swift` | Real StoreKit 2 | Stub: `isPremium = false`, no-op purchase/restore. TODO: wire Google Play Billing via Skip Kotlin interop. |
+| `ReadTime/CloudSync/RoadmapCloudKit.swift` | Real CloudKit (`CKRecord`/`CKContainer`/`CKQuery`) | A hand-rolled CloudKit Web Services REST client (`URLSession`, JSON) hitting the same public database. **Unverified** — API-token auth only, no request signing yet; needs testing against a real dev container before trusting it. |
+| `ReadTime/Media/AddBookPhotoPicker.swift` | Real `PhotosPicker`/`PhotosPickerItem` | Stub button, does nothing yet. TODO: Android Photo Picker (`ActivityResultContracts.PickVisualMedia`) via interop — check first whether Skip already has a native `PhotosPicker` shim before building this. |
+| `ReadTime/Ads/AdManager.swift` | Real GoogleMobileAds + UMP + ATT | Stub: no ads, `bannerUnitID` nil, `showInterstitial` calls its completion immediately. TODO: AdMob Android SDK + Android UMP via interop. |
+| `ReadTime/Ads/AdBanner.swift` | Real `UIViewRepresentable` wrapping `BannerView` | Renders nothing. TODO: Compose `AndroidView` hosting AdMob's Android `AdView`. |
+| `ReadTime/Stats/ChartViews.swift` | Real Swift Charts (`Chart`/`BarMark`) | Hand-rolled plain-SwiftUI bar charts (no `Charts` import) — transpiles straight to Compose with no further interop needed. |
+| `ReadTime/PlatformUtil/PlatformBits.swift` | `AlternateIcon`/`AppIconPickerView` (real), `KeyboardDismissal` (real, UIKit gesture-based) | App-icon picker: **hidden entirely** — Android has no runtime alternate-launcher-icon API (would need build-time activity aliases). `KeyboardDismissal`: no-op stub — TODO: Compose's `LocalFocusManager.clearFocus()`, but that needs a Composable receiver Skip interop doesn't expose to this call site yet. |
+
+## In-place seams (no extraction, guarded inline)
+
+- **`ReadTime/SharedModels.swift`**
+  - `AppGroup.containerURL` — iOS uses the shared app-group container (for the
+    widget); Android falls back to plain app-internal storage (no app-group
+    concept, and no widget to share with there anyway).
+  - `CoverCache`'s cache-key hash — iOS uses `CryptoKit.SHA256`; Android uses
+    a plain `String.hashValue`-based hash for now. **TODO:** swap for a real
+    SHA-256 (`java.security.MessageDigest` via interop) if this matters later
+    — the current version is a stable-but-weaker filename generator.
+- **`ReadTime/ReadTimeApp.swift`**
+  - `WidgetCenter.shared.reloadAllTimelines()` (in `ReadingStore.save()`) —
+    iOS-only call, no-op on Android (no widgets there).
+  - `AppearanceMode.apply()` — iOS forces light/dark via
+    `UIWindowScene.overrideUserInterfaceStyle`; Android no-op for now (TODO:
+    `AppCompatDelegate.setDefaultNightMode` via interop). "System" already
+    works with zero code since Android follows the OS theme by default.
+  - `AppInfo.contactURL`'s OS-version string — iOS reads
+    `UIDevice.current.systemVersion`; Android just says "Android" for now
+    (TODO: `Build.VERSION.RELEASE` via interop for an exact version).
+  - The "Language" settings row's deep link — iOS opens Settings via
+    `UIApplication.openSettingsURLString`; Android is a no-op for now (TODO:
+    an `ACTION_APPLICATION_DETAILS_SETTINGS` intent via interop — SwiftUI's
+    `openURL` can't express this without a Kotlin-side companion call).
+  - Two "Rate ReadTime" buttons (Settings, About) using
+    `SKStoreReviewController` — Android no-op for now (TODO: Play Core's
+    in-app review API via interop).
+
+## Deliberately left unguarded (per the plan's "verify first" rule)
+
+These are flagged as partial/quirky Skip support in the original research,
+but not pre-emptively rewritten — attempt the transpile as-is once a real
+Skip toolchain is available, and only patch what actually breaks:
+
+- `FlowLayout: Layout` custom layout conformance (3 call sites)
+- `GeometryReader` (2 call sites)
+- `@FocusState` (`AddBookView`'s search field)
+- Generic `@ViewBuilder` container views (`NewGoalMenu<Label>`,
+  `CreateGoalFlow`, `OnboardingStepLayout<Content,Actions>`,
+  `SectionHeader<Action>`)
+- `.task(id:)`, `.buttonBorderShape(.capsule)` (15+ sites)
+- `@AppStorage` with a custom `RawRepresentable` enum
+  (`AppearanceMode.storageKey`) — Skip maps `@AppStorage` to
+  `SharedPreferences` generally; this one case needs a specific check.
+- `UserNotifications`/`ReminderManager`'s daily/weekday reminder scheduling —
+  assumed to transpile via Skip's notification shim; Android's Doze/exact-alarm
+  behavior differs from iOS and needs on-device verification.
+
+## Verification checklist (requires a real macOS + Xcode + Skip + Android Studio setup — nothing here was buildable in this sandbox)
+
+1. Run `skip init --appid=com.fatties.readtime ReadTimeNative ReadTime` in a
+   scratch directory; inspect the generated `Package.swift`/`Darwin/`/`Android/`
+   layout.
+2. `git mv` `ReadTime/ReadTimeApp.swift`, `SharedModels.swift`, and the 7 new
+   seam files into the generated `Sources/ReadTimeNative/` module (preserving
+   directory structure under it); merge `Info.plist`/entitlements/assets into
+   the generated `Darwin/ReadTimeNative/` target.
+3. Build + run the iOS target in Xcode — confirm behavior is unchanged from
+   before this refactor (this alone should catch anything broken by the
+   extraction, independent of Android).
+4. Run `skip build` / open `Android/` in Android Studio, sync Gradle, build,
+   run on an emulator — see what actually breaks among the "deliberately
+   unguarded" list above, and patch minimally.
+5. Once running: test CloudKit Web Services REST calls against a
+   **development** CloudKit container first (manual `curl` against the same
+   signing/auth scheme before trusting the in-app client); verify
+   `@AppStorage`/`SharedPreferences` persistence; verify reminder
+   notifications actually fire on a schedule.
+6. Only after the app is otherwise functional: wire up real Play Billing and
+   real AdMob Android, and decide on a product-level answer for the hidden
+   app-icon-picker feature.

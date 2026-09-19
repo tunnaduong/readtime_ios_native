@@ -1,17 +1,12 @@
 import SwiftUI
 import Combine
-import CryptoKit
-import Charts
 import UserNotifications
 import UIKit
-import StoreKit
-import PhotosUI
-import GoogleMobileAds
-import UserMessagingPlatform
-import AppTrackingTransparency
+#if !SKIP
 import WidgetKit
+import StoreKit
+#endif
 import UniformTypeIdentifiers
-import CloudKit
 
 @main
 struct ReadTimeApp: App {
@@ -180,7 +175,10 @@ final class ReadingStore: ObservableObject {
         // Nothing is written until onboarding finishes, so quitting halfway shows it again next launch.
         guard !needsOnboarding else { return }
         LocalStore.save(snapshot)
+        #if !SKIP
         WidgetCenter.shared.reloadAllTimelines()
+        #endif
+        // no-op on Android: no widget support there.
         // Save active session state
         if let bookID = activeSessionBookID, let startedAt = activeSessionStartedAt {
             let session = ActiveSessionState(bookID: bookID, startedAt: startedAt)
@@ -2070,7 +2068,7 @@ struct AddBookView: View {
     @State private var coverName: String?
     @State private var coverURL: String?
     @State private var confirmingDelete = false
-    @State private var photoItem: PhotosPickerItem?
+    @State private var photoItem: CoverPickerItem?
     @State private var isLoadingPhoto = false
     @State private var photoError: String?
 
@@ -2175,7 +2173,7 @@ struct AddBookView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 5))
 
                         VStack(alignment: .leading, spacing: 10) {
-                            PhotosPicker(selection: $photoItem, matching: .images) {
+                            CoverPickerButton(selection: $photoItem) {
                                 Label(hasCover ? "Change Cover" : "Upload Cover", systemImage: "photo.on.rectangle")
                             }
                             if hasCover {
@@ -2277,11 +2275,11 @@ struct AddBookView: View {
         isSearching = false
     }
 
-    private func loadCover(from item: PhotosPickerItem) async {
+    private func loadCover(from item: CoverPickerItem) async {
         isLoadingPhoto = true
         photoError = nil
         do {
-            guard let data = try await item.loadTransferable(type: Data.self) else { throw CocoaError(.fileReadNoSuchFile) }
+            guard let data = try await item.loadCoverData() else { throw CocoaError(.fileReadNoSuchFile) }
             coverURL = try CoverCache.saveUploadedCover(data)
             coverName = nil
         } catch {
@@ -2545,22 +2543,7 @@ struct StatsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                Chart(favourites.shares) { share in
-                    BarMark(
-                        x: .value("Share", share.percent),
-                        y: .value("Genre", share.genre)
-                    )
-                    .foregroundStyle(Color.readTimePurple.opacity(0.78))
-                    .cornerRadius(4)
-                    .annotation(position: .trailing) {
-                        Text("\(share.percent)%")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .chartXScale(domain: 0...115)
-                .chartXAxis(.hidden)
-                .frame(height: CGFloat(favourites.shares.count) * 42 + 10)
+                GenreShareBarChart(shares: favourites.shares)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2882,16 +2865,8 @@ struct TrendCard: View {
             .buttonStyle(.plain)
 
             if expanded {
-                Chart(series, id: \.date) { point in
-                    BarMark(
-                        x: .value("Date", point.date, unit: unit),
-                        y: .value("Value", point.value)
-                    )
-                    .foregroundStyle(color.gradient)
-                    .cornerRadius(3)
-                }
-                .frame(height: 150)
-                .transition(.opacity)
+                TrendBarChart(series: series, unit: unit, color: color)
+                    .transition(.opacity)
             }
         }
         .padding(16)
@@ -3465,6 +3440,7 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
     /// Also applied at the window level so switching back to System takes effect
     /// immediately, including in sheets that are already on screen.
     func apply() {
+        #if !SKIP
         let style: UIUserInterfaceStyle = switch self {
         case .system: .unspecified
         case .light: .light
@@ -3474,138 +3450,16 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
             .forEach { $0.overrideUserInterfaceStyle = style }
+        #else
+        // TODO(android): force a light/dark override via AppCompatDelegate.setDefaultNightMode
+        // (Kotlin interop); "System" already works with no code since Android follows the
+        // system theme by default when nothing overrides it.
+        #endif
     }
 }
 
-@MainActor
-final class PurchaseManager: ObservableObject {
-    // TODO: Replace with the product ID configured in App Store Connect.
-    static let premiumProductID = "com.fatties.readtime.premium"
-
-    @Published private(set) var premiumProduct: Product?
-    @Published private(set) var isPremium = false {
-        didSet { AdManager.shared.isAdFree = isPremium }
-    }
-    @Published private(set) var isWorking = false
-    @Published var message: String?
-
-    private var updatesTask: Task<Void, Never>?
-
-    init() {
-        updatesTask = Task { [weak self] in
-            for await result in StoreKit.Transaction.updates {
-                if case .verified(let transaction) = result {
-                    await transaction.finish()
-                    await self?.refreshEntitlements()
-                }
-            }
-        }
-    }
-
-    deinit {
-        updatesTask?.cancel()
-    }
-
-    func load() async {
-        premiumProduct = try? await Product.products(for: [Self.premiumProductID]).first
-        await refreshEntitlements()
-    }
-
-    /// Length of the free trial, when the product is a subscription with one.
-    var freeTrialDescription: String? {
-        guard let offer = premiumProduct?.subscription?.introductoryOffer, offer.paymentMode == .freeTrial else { return nil }
-        return Self.describe(offer.period)
-    }
-
-    func isEligibleForFreeTrial() async -> Bool {
-        guard freeTrialDescription != nil, let subscription = premiumProduct?.subscription else { return false }
-        return await subscription.isEligibleForIntroOffer
-    }
-
-    /// "29,000 ₫/year" for subscriptions, or the plain price for a one-time purchase.
-    var priceDescription: String? {
-        guard let product = premiumProduct else { return nil }
-        guard let period = product.subscription?.subscriptionPeriod else { return product.displayPrice }
-        return "\(product.displayPrice)/\(Self.describe(period, unitOnly: period.value == 1))"
-    }
-
-    private static func describe(_ period: Product.SubscriptionPeriod, unitOnly: Bool = false) -> String {
-        let components: DateComponents
-        switch period.unit {
-        case .day: components = DateComponents(day: period.value)
-        case .week: components = DateComponents(day: period.value * 7)
-        case .month: components = DateComponents(month: period.value)
-        case .year: components = DateComponents(year: period.value)
-        @unknown default: components = DateComponents(day: period.value)
-        }
-        if unitOnly {
-            switch period.unit {
-            case .week: return String(localized: "week")
-            case .month: return String(localized: "month")
-            case .year: return String(localized: "year")
-            default: return String(localized: "day")
-            }
-        }
-        let formatter = DateComponentsFormatter()
-        formatter.unitsStyle = .full
-        formatter.maximumUnitCount = 1
-        return formatter.string(from: components) ?? ""
-    }
-
-    func refreshEntitlements() async {
-        var owned = false
-        for await result in StoreKit.Transaction.currentEntitlements {
-            if case .verified(let transaction) = result,
-               transaction.productID == Self.premiumProductID,
-               transaction.revocationDate == nil {
-                owned = true
-            }
-        }
-        isPremium = owned
-    }
-
-    func buyPremium() async {
-        if premiumProduct == nil { await load() }
-        guard let premiumProduct else {
-            message = String(localized: "Premium isn't available right now. Please try again later.")
-            return
-        }
-        isWorking = true
-        defer { isWorking = false }
-        do {
-            switch try await premiumProduct.purchase() {
-            case .success(.verified(let transaction)):
-                await transaction.finish()
-                isPremium = true
-                message = String(localized: "Welcome to ReadTime Premium!")
-            case .success(.unverified):
-                message = String(localized: "The purchase couldn't be verified.")
-            case .pending:
-                message = String(localized: "Your purchase is pending approval.")
-            case .userCancelled:
-                break
-            @unknown default:
-                break
-            }
-        } catch {
-            message = error.localizedDescription
-        }
-    }
-
-    func restorePurchases() async {
-        isWorking = true
-        defer { isWorking = false }
-        do {
-            try await AppStore.sync()
-            await refreshEntitlements()
-            message = isPremium
-                ? String(localized: "Your purchases have been restored.")
-                : String(localized: "No previous purchases were found.")
-        } catch {
-            message = error.localizedDescription
-        }
-    }
-}
+// PurchaseManager moved to ReadTime/Purchases/PurchaseManager.swift
+// (#if !SKIP real StoreKit / #else Android Play Billing stub).
 
 enum AppInfo {
     // TODO: Replace with the real support address.
@@ -3630,13 +3484,23 @@ enum AppInfo {
         return "\(short) (\(build))"
     }
 
+    private static var osVersionDescription: String {
+        #if !SKIP
+        "iOS \(UIDevice.current.systemVersion)"
+        #else
+        // TODO(android): swap for `android.os.Build.VERSION.RELEASE` via Kotlin interop
+        // for an exact OS version; omitted for now rather than hardcoded/misleading.
+        "Android"
+        #endif
+    }
+
     static var contactURL: URL? {
         var components = URLComponents()
         components.scheme = "mailto"
         components.path = supportEmail
         components.queryItems = [
             URLQueryItem(name: "subject", value: String(localized: "ReadTime Support")),
-            URLQueryItem(name: "body", value: "\n\n---\nApp version: \(version)\niOS \(UIDevice.current.systemVersion)")
+            URLQueryItem(name: "body", value: "\n\n---\nApp version: \(version)\n\(osVersionDescription)")
         ]
         return components.url
     }
@@ -3679,9 +3543,15 @@ struct SettingsView: View {
 
                 Section {
                     Button {
+                        #if !SKIP
                         if let url = URL(string: UIApplication.openSettingsURLString) {
                             openURL(url)
                         }
+                        #else
+                        // TODO(android): launch an ACTION_APPLICATION_DETAILS_SETTINGS intent via
+                        // Kotlin interop; SwiftUI's `openURL` has no equivalent for an Android
+                        // settings intent (it only opens URLs), so this is a no-op until then.
+                        #endif
                     } label: {
                         HStack {
                             Label("Language", systemImage: "globe")
@@ -3698,11 +3568,13 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    #if !SKIP
                     NavigationLink {
                         AppIconPickerView()
                     } label: {
                         Label("App Icon", systemImage: "square.grid.2x2")
                     }
+                    #endif
                     NavigationLink {
                         ImportExportView()
                             .environmentObject(store)
@@ -3739,8 +3611,17 @@ struct SettingsView: View {
                     Button {
                         if let url = AppInfo.writeReviewURL {
                             openURL(url)
-                        } else if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
-                            SKStoreReviewController.requestReview(in: scene)
+                        } else {
+                            #if !SKIP
+                            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                                SKStoreReviewController.requestReview(in: scene)
+                            }
+                            #else
+                            // TODO(android): Play Core's in-app review API has no direct
+                            // StoreKit-equivalent Swift call; wire it up via Kotlin interop.
+                            // Falls through to nothing for now since `writeReviewURL` is nil
+                            // until AppInfo.appStoreID is set.
+                            #endif
                         }
                     } label: {
                         Label("Leave a Review", systemImage: "star")
@@ -3949,22 +3830,7 @@ struct SettingsView: View {
 
 /// Sends the onboarding answer to the CloudKit public database, once per device.
 /// Only the chosen option and the app version are stored — nothing about the reader.
-enum ReferralReport {
-    private static let sentKey = "onboarding_referral_sent"
-
-    static func send(source: String) async {
-        guard !UserDefaults.standard.bool(forKey: sentKey) else { return }
-        let record = CKRecord(recordType: "ReferralAnswer")
-        record["source"] = source
-        record["appVersion"] = AppInfo.version
-        do {
-            try await CKContainer(identifier: RoadmapStore.containerIdentifier).publicCloudDatabase.save(record)
-            UserDefaults.standard.set(true, forKey: sentKey)
-        } catch {
-            // Not worth interrupting onboarding; the answer stays on the device.
-        }
-    }
-}
+// ReferralReport moved to ReadTime/CloudSync/RoadmapCloudKit.swift.
 
 // MARK: - Premium paywall
 
@@ -4097,167 +3963,7 @@ struct PremiumPaywallView: View {
 
 // MARK: - Roadmap
 
-/// A feature on the public roadmap, stored in the CloudKit public database.
-///
-/// CloudKit setup (container `iCloud.com.fatties.readtime`, CloudKit Console):
-/// - `FeatureRequest`: title (String), details (String), status (String), listed (Int64, Queryable).
-///   Only records with `listed = 1` appear, so set it after reviewing a suggestion.
-/// - `Vote`: featureName (String, Queryable). One record per user and feature.
-/// Deploy the schema to Production before release.
-struct FeatureRequest: Identifiable, Hashable {
-    enum Status: String, CaseIterable, Identifiable {
-        case inReview, planned, inProgress, completed
-
-        var id: String { rawValue }
-
-        var title: LocalizedStringKey {
-            switch self {
-            case .inReview: "In Review"
-            case .planned: "Planned"
-            case .inProgress: "In Progress"
-            case .completed: "Completed"
-            }
-        }
-
-        var color: Color {
-            switch self {
-            case .inReview: .blue
-            case .planned: .readTimePurple
-            case .inProgress: .orange
-            case .completed: .readTimeGreen
-            }
-        }
-    }
-
-    let id: String
-    var title: String
-    var details: String
-    var status: Status
-    var votes: Int
-    var hasVoted: Bool
-}
-
-@MainActor
-final class RoadmapStore: ObservableObject {
-    static let containerIdentifier = "iCloud.com.fatties.readtime"
-
-    @Published private(set) var requests: [FeatureRequest] = []
-    @Published private(set) var isLoading = false
-    @Published private(set) var loadFailed = false
-    /// False when there's no iCloud account on the device, which blocks the public database too.
-    @Published private(set) var isSignedIn = true
-    @Published var message: String?
-
-    private let container = CKContainer(identifier: RoadmapStore.containerIdentifier)
-    private var database: CKDatabase { container.publicCloudDatabase }
-    private var userID: CKRecord.ID?
-
-    func load() async {
-        isLoading = true
-        loadFailed = false
-        defer { isLoading = false }
-        isSignedIn = (try? await container.accountStatus()) == .available
-        userID = try? await container.userRecordID()
-        do {
-            // Fetch everything and hide only what's explicitly unlisted, so a record created
-            // without `listed` still shows up.
-            let features = try await fetchAll(CKQuery(recordType: "FeatureRequest", predicate: NSPredicate(value: true)))
-                .filter { ($0["listed"] as? Int64) != 0 }
-            let names = features.map(\.recordID.recordName)
-            let votes = names.isEmpty ? [] : try await fetchAll(CKQuery(recordType: "Vote", predicate: NSPredicate(format: "featureName IN %@", names)))
-
-            var counts: [String: Int] = [:]
-            var mine: Set<String> = []
-            for vote in votes {
-                guard let name = vote["featureName"] as? String else { continue }
-                counts[name, default: 0] += 1
-                if let userID, vote.creatorUserRecordID?.recordName == userID.recordName
-                    || vote.creatorUserRecordID?.recordName == CKCurrentUserDefaultName {
-                    mine.insert(name)
-                }
-            }
-
-            requests = features.map { record in
-                let name = record.recordID.recordName
-                return FeatureRequest(
-                    id: name,
-                    title: record["title"] as? String ?? "",
-                    details: record["details"] as? String ?? "",
-                    status: FeatureRequest.Status(rawValue: record["status"] as? String ?? "") ?? .inReview,
-                    votes: counts[name] ?? 0,
-                    hasVoted: mine.contains(name)
-                )
-            }
-            .sorted { $0.votes == $1.votes ? $0.title < $1.title : $0.votes > $1.votes }
-        } catch let error as CKError where error.code == .unknownItem {
-            // The record types don't exist until the first record is saved.
-            requests = []
-        } catch {
-            loadFailed = true
-        }
-    }
-
-    func toggleVote(for request: FeatureRequest) async {
-        guard let userID else {
-            message = String(localized: "Sign in to iCloud in the Settings app to vote.")
-            return
-        }
-        guard let index = requests.firstIndex(where: { $0.id == request.id }) else { return }
-        let recordID = CKRecord.ID(recordName: "vote-\(request.id)-\(userID.recordName)")
-        let wasVoted = requests[index].hasVoted
-        requests[index].hasVoted.toggle()
-        requests[index].votes += wasVoted ? -1 : 1
-
-        do {
-            if wasVoted {
-                try await database.deleteRecord(withID: recordID)
-            } else {
-                let vote = CKRecord(recordType: "Vote", recordID: recordID)
-                vote["featureName"] = request.id
-                try await database.save(vote)
-            }
-        } catch let error as CKError where error.code == .serverRecordChanged || error.code == .unknownItem {
-            // Already voted (or already removed) on another device; the local state is now correct.
-        } catch {
-            if let index = requests.firstIndex(where: { $0.id == request.id }) {
-                requests[index].hasVoted = wasVoted
-                requests[index].votes += wasVoted ? 1 : -1
-            }
-            message = error.localizedDescription
-        }
-    }
-
-    func suggest(title: String, details: String) async -> Bool {
-        guard userID != nil else {
-            message = String(localized: "Sign in to iCloud in the Settings app to suggest a feature.")
-            return false
-        }
-        let record = CKRecord(recordType: "FeatureRequest")
-        record["title"] = title
-        record["details"] = details
-        record["status"] = FeatureRequest.Status.inReview.rawValue
-        record["listed"] = 0 as Int64
-        do {
-            try await database.save(record)
-            message = String(localized: "Thanks! Your suggestion will appear on the roadmap once it's been reviewed.")
-            return true
-        } catch {
-            message = error.localizedDescription
-            return false
-        }
-    }
-
-    private func fetchAll(_ query: CKQuery) async throws -> [CKRecord] {
-        var records: [CKRecord] = []
-        var (results, cursor) = try await database.records(matching: query)
-        records += results.compactMap { try? $0.1.get() }
-        while let next = cursor {
-            (results, cursor) = try await database.records(continuingMatchFrom: next)
-            records += results.compactMap { try? $0.1.get() }
-        }
-        return records
-    }
-}
+// FeatureRequest, RoadmapStore moved to ReadTime/CloudSync/RoadmapCloudKit.swift.
 
 struct RoadmapView: View {
     @StateObject private var roadmap = RoadmapStore()
@@ -4529,106 +4235,8 @@ struct SuggestFeatureView: View {
     }
 }
 
-// MARK: - App icon
-
-enum AlternateIcon: String, CaseIterable, Identifiable {
-    case standard = "Default", midnight = "Midnight", paper = "Paper", sunset = "Sunset", forest = "Forest", ocean = "Ocean"
-
-    var id: String { rawValue }
-
-    /// Nil selects the primary icon.
-    var iconName: String? { self == .standard ? nil : "AppIcon-\(rawValue)" }
-
-    var title: LocalizedStringKey {
-        switch self {
-        case .standard: "Default"
-        case .midnight: "Midnight"
-        case .paper: "Paper"
-        case .sunset: "Sunset"
-        case .forest: "Forest"
-        case .ocean: "Ocean"
-        }
-    }
-
-    static var current: AlternateIcon {
-        let name = UIApplication.shared.alternateIconName
-        return allCases.first { $0.iconName == name } ?? .standard
-    }
-}
-
-struct AppIconPickerView: View {
-    @State private var selection = AlternateIcon.current
-    @State private var errorMessage: String?
-
-    var body: some View {
-        ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 18)], spacing: 22) {
-                ForEach(AlternateIcon.allCases) { icon in
-                    Button {
-                        choose(icon)
-                    } label: {
-                        VStack(spacing: 8) {
-                            Image("AppIconPreview-\(icon.rawValue)")
-                                .resizable()
-                                .frame(width: 76, height: 76)
-                                .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 17, style: .continuous)
-                                        .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
-                                )
-                                .padding(4)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 21, style: .continuous)
-                                        .stroke(selection == icon ? Color.readTimePurple : .clear, lineWidth: 3)
-                                )
-                            Text(icon.title)
-                                .font(.subheadline.weight(selection == icon ? .semibold : .regular))
-                                .foregroundStyle(selection == icon ? Color.readTimePurple : Color.readTimeText)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selection == icon ? .isSelected : [])
-                }
-            }
-            .padding(24)
-        }
-        .background(Color.readTimeBackground.ignoresSafeArea())
-        .navigationTitle("App Icon")
-        .navigationBarTitleDisplayMode(.inline)
-        .alert("App Icon", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage ?? "")
-        }
-    }
-
-    private func choose(_ icon: AlternateIcon) {
-        guard icon != selection, UIApplication.shared.supportsAlternateIcons else { return }
-        let previous = selection
-        selection = icon
-        Task {
-            do {
-                try await setIcon(icon, retries: 2)
-            } catch {
-                selection = previous
-                errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    /// iOS sometimes answers EAGAIN ("Resource temporarily unavailable") while it's still busy,
-    /// occasionally even after the icon did change, so check the icon in use and try again.
-    private func setIcon(_ icon: AlternateIcon, retries: Int) async throws {
-        do {
-            try await UIApplication.shared.setAlternateIconName(icon.iconName)
-        } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(EAGAIN) {
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            if UIApplication.shared.alternateIconName == icon.iconName { return }
-            guard retries > 0 else { throw error }
-            try await setIcon(icon, retries: retries - 1)
-        }
-    }
-}
+// AlternateIcon, AppIconPickerView moved to ReadTime/PlatformUtil/PlatformBits.swift
+// (iOS-only; no Android runtime equivalent).
 
 // MARK: - Import & export
 
@@ -4923,9 +4531,13 @@ struct AboutView: View {
 
             Section {
                 Button("Rate ReadTime") {
+                    #if !SKIP
                     if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
                         SKStoreReviewController.requestReview(in: scene)
                     }
+                    #else
+                    // TODO(android): Play Core's in-app review API via Kotlin interop.
+                    #endif
                 }
                 Button("Contact Us") {
                     if let url = AppInfo.contactURL { openURL(url) }
@@ -5457,343 +5069,9 @@ private struct OnboardingFirstBookStep: View {
     }
 }
 
-// MARK: - Ads
+// AdManager, AdBanner moved to ReadTime/Ads/AdManager.swift and ReadTime/Ads/AdBanner.swift.
 
-/// Google AdMob interstitials, shown when a reading session ends.
-/// IDs come from Info.plist (set in ReadTime/Config/ReadTime.xcconfig); they default to Google's test IDs.
-@MainActor
-final class AdManager: NSObject, ObservableObject, FullScreenContentDelegate {
-    static let shared = AdManager()
-
-    /// Premium users never see ads.
-    @Published var isAdFree = false
-
-    private var interstitial: InterstitialAd?
-    private var isLoading = false
-
-    private var appOpenAd: AppOpenAd?
-    private var appOpenLoadedAt: Date?
-    private var isLoadingAppOpen = false
-    private var lastAppOpenShownAt: Date?
-    private var isShowingAd = false
-    private let launchedAt = Date()
-    private var onDismiss: (() -> Void)?
-    private var started = false
-
-    private var interstitialUnitID: String? {
-        let value = (Bundle.main.object(forInfoDictionaryKey: "AdMobInterstitialUnitID") as? String ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty || value.hasPrefix("$(") ? nil : value
-    }
-
-    /// Asks for consent where the law requires it (EEA, UK, and similar), then starts the SDK
-    /// and preloads the first ad.
-    func start() {
-        guard !started else { return }
-        #if DEBUG
-        // Used when capturing App Store screenshots: `simctl launch … -disableAds YES`.
-        if UserDefaults.standard.bool(forKey: "disableAds") {
-            isAdFree = true
-            return
-        }
-        #endif
-        started = true
-        Task { await prepare() }
-    }
-
-    /// Google's consent form first (where required), then Apple's tracking prompt, then the SDK.
-    private func prepare() async {
-        // Returning users who already answered the tracking prompt can start without waiting.
-        if ATTrackingManager.trackingAuthorizationStatus != .notDetermined {
-            startSDKIfAllowed()
-        }
-
-        await withCheckedContinuation { continuation in
-            ConsentInformation.shared.requestConsentInfoUpdate(with: RequestParameters()) { _ in
-                continuation.resume()
-            }
-        }
-        if let root = Self.topViewController() {
-            try? await ConsentForm.loadAndPresentIfRequired(from: root)
-        }
-
-        await requestTrackingAuthorizationIfNeeded()
-        startSDKIfAllowed()
-    }
-
-    private func requestTrackingAuthorizationIfNeeded() async {
-        guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else { return }
-        // iOS ignores the request unless the app is active, e.g. right after launch.
-        for _ in 0..<20 where UIApplication.shared.applicationState != .active {
-            try? await Task.sleep(nanoseconds: 250_000_000)
-        }
-        _ = await ATTrackingManager.requestTrackingAuthorization()
-    }
-
-    /// True once consent allows ads and the SDK has started; banners wait for this.
-    @Published private(set) var sdkStarted = false
-
-    var bannerUnitID: String? {
-        let value = (Bundle.main.object(forInfoDictionaryKey: "AdMobBannerUnitID") as? String ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty || value.hasPrefix("$(") ? nil : value
-    }
-
-    private func startSDKIfAllowed() {
-        guard ConsentInformation.shared.canRequestAds, !sdkStarted else { return }
-        sdkStarted = true
-        MobileAds.shared.start { [weak self] _ in
-            Task { @MainActor in
-                self?.loadInterstitial()
-                self?.loadAppOpenAd()
-            }
-        }
-    }
-
-    private func loadInterstitial() {
-        guard !isAdFree, sdkStarted, interstitial == nil, !isLoading, let unitID = interstitialUnitID else { return }
-        isLoading = true
-        InterstitialAd.load(with: unitID, request: Request()) { [weak self] ad, _ in
-            Task { @MainActor in
-                guard let self else { return }
-                self.isLoading = false
-                self.interstitial = ad
-                ad?.fullScreenContentDelegate = self
-            }
-        }
-    }
-
-    private var appOpenUnitID: String? {
-        let value = (Bundle.main.object(forInfoDictionaryKey: "AdMobAppOpenUnitID") as? String ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty || value.hasPrefix("$(") ? nil : value
-    }
-
-    /// App open ads expire after four hours, per Google's guidance.
-    private var hasFreshAppOpenAd: Bool {
-        guard appOpenAd != nil, let appOpenLoadedAt else { return false }
-        return Date.now.timeIntervalSince(appOpenLoadedAt) < 4 * 3600
-    }
-
-    private func loadAppOpenAd() {
-        guard !isAdFree, sdkStarted, !isLoadingAppOpen, !hasFreshAppOpenAd, let unitID = appOpenUnitID else { return }
-        isLoadingAppOpen = true
-        AppOpenAd.load(with: unitID, request: Request()) { [weak self] ad, _ in
-            Task { @MainActor in
-                guard let self else { return }
-                self.isLoadingAppOpen = false
-                self.appOpenAd = ad
-                self.appOpenLoadedAt = ad == nil ? nil : .now
-                ad?.fullScreenContentDelegate = self
-                // Cold start: show it only if it arrived within a few seconds of launch,
-                // so it never pops up in the middle of using the app.
-                if ad != nil, Date.now.timeIntervalSince(self.launchedAt) < 5 {
-                    self.showAppOpenAdIfAvailable()
-                }
-            }
-        }
-    }
-
-    /// Shows an app open ad when the app opens or returns to the foreground.
-    func showAppOpenAdIfAvailable() {
-        guard !isAdFree, !isShowingAd else { return }
-        // Don't show them back to back when someone quickly switches apps.
-        if let lastAppOpenShownAt, Date.now.timeIntervalSince(lastAppOpenShownAt) < 60 { return }
-        guard hasFreshAppOpenAd, let appOpenAd, let root = Self.topViewController(), !(root is UIAlertController) else {
-            loadAppOpenAd()
-            return
-        }
-        isShowingAd = true
-        lastAppOpenShownAt = .now
-        appOpenAd.present(from: root)
-    }
-
-    /// Shows an interstitial if one is loaded, then calls `completion` once it closes.
-    /// Calls `completion` right away when there's no ad (Premium, no consent, still loading, offline).
-    func showInterstitial(then completion: @escaping () -> Void) {
-        guard !isAdFree, let interstitial, let root = Self.topViewController() else {
-            completion()
-            loadInterstitial()
-            return
-        }
-        onDismiss = completion
-        isShowingAd = true
-        interstitial.present(from: root)
-    }
-
-    nonisolated func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
-        let adID = ObjectIdentifier(ad)
-        Task { @MainActor in self.finishPresentation(of: adID) }
-    }
-
-    nonisolated func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
-        let adID = ObjectIdentifier(ad)
-        Task { @MainActor in self.finishPresentation(of: adID) }
-    }
-
-    private func finishPresentation(of adID: ObjectIdentifier) {
-        isShowingAd = false
-        if let appOpenAd, ObjectIdentifier(appOpenAd) == adID {
-            self.appOpenAd = nil
-            appOpenLoadedAt = nil
-            loadAppOpenAd()
-            return
-        }
-        interstitial = nil
-        let completion = onDismiss
-        onDismiss = nil
-        completion?()
-        loadInterstitial()
-    }
-
-    static func topViewController() -> UIViewController? {
-        let root = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow)?
-            .rootViewController
-        var top = root
-        while let presented = top?.presentedViewController {
-            top = presented
-        }
-        return top
-    }
-}
-
-/// An adaptive AdMob banner that takes no space until an ad has loaded, and none at all for Premium users.
-struct AdBanner: View {
-    @ObservedObject private var ads = AdManager.shared
-    @State private var width: CGFloat = 0
-    @State private var loadedHeight: CGFloat = 0
-
-    var body: some View {
-        if !ads.isAdFree, ads.sdkStarted, let unitID = ads.bannerUnitID {
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: loadedHeight)
-                .background(GeometryReader { proxy in
-                    Color.clear
-                        .onAppear { width = proxy.size.width }
-                        .onChange(of: proxy.size.width) { width = $0 }
-                })
-                .overlay(alignment: .top) {
-                    if width >= 320 {
-                        // The banner always gets its full ad size (AdMob rejects a zero-height view);
-                        // the container stays collapsed and clips it until an ad has loaded.
-                        BannerAdView(unitID: unitID, width: width) { loadedHeight = $0 }
-                            .frame(width: width, height: currentOrientationAnchoredAdaptiveBanner(width: width).size.height)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .animation(.easeOut(duration: 0.2), value: loadedHeight)
-        }
-    }
-}
-
-private struct BannerAdView: UIViewRepresentable {
-    let unitID: String
-    let width: CGFloat
-    let onHeightChange: (CGFloat) -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator(onHeightChange: onHeightChange) }
-
-    func makeUIView(context: Context) -> BannerView {
-        let banner = BannerView(adSize: currentOrientationAnchoredAdaptiveBanner(width: width))
-        banner.adUnitID = unitID
-        banner.delegate = context.coordinator
-        banner.rootViewController = AdManager.topViewController()
-        banner.load(Request())
-        context.coordinator.loadedWidth = width
-        return banner
-    }
-
-    func updateUIView(_ banner: BannerView, context: Context) {
-        // Reload at the new width after rotation or a layout change.
-        guard width > 0, abs(width - context.coordinator.loadedWidth) > 1 else { return }
-        context.coordinator.loadedWidth = width
-        banner.adSize = currentOrientationAnchoredAdaptiveBanner(width: width)
-        banner.load(Request())
-    }
-
-    final class Coordinator: NSObject, BannerViewDelegate {
-        let onHeightChange: (CGFloat) -> Void
-        var loadedWidth: CGFloat = 0
-
-        init(onHeightChange: @escaping (CGFloat) -> Void) {
-            self.onHeightChange = onHeightChange
-        }
-
-        func bannerViewDidReceiveAd(_ bannerView: BannerView) {
-            onHeightChange(bannerView.adSize.size.height)
-        }
-
-        func bannerView(_ bannerView: BannerView, didFailToReceiveAdWithError error: Error) {
-            onHeightChange(0)
-        }
-    }
-}
-
-// MARK: - Keyboard
-
-extension View {
-    /// Adds a Done button above the keyboard and lets scrolling push the keyboard away.
-    /// Use inside a NavigationStack on screens with text input.
-    func keyboardDoneButton() -> some View {
-        self
-            .scrollDismissesKeyboard(.interactively)
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { KeyboardDismissal.dismiss() }
-                        .fontWeight(.semibold)
-                }
-            }
-    }
-}
-
-/// Hides the keyboard when the user taps anywhere that isn't a text field, across the whole
-/// app (sheets included), without swallowing taps meant for buttons.
-enum KeyboardDismissal {
-    private static let handler = TapHandler()
-
-    static func dismiss() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
-
-    static func install() {
-        let windows = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-        for window in windows where !(window.gestureRecognizers ?? []).contains(where: { $0 is DismissTap }) {
-            let tap = DismissTap(target: handler, action: #selector(TapHandler.handleTap(_:)))
-            tap.cancelsTouchesInView = false
-            tap.delegate = handler
-            window.addGestureRecognizer(tap)
-        }
-    }
-
-    private final class DismissTap: UITapGestureRecognizer {}
-
-    private final class TapHandler: NSObject, UIGestureRecognizerDelegate {
-        @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
-            recognizer.view?.endEditing(true)
-        }
-
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-            // Let taps on text inputs through so moving between fields keeps the keyboard up.
-            var view = touch.view
-            while let current = view {
-                if current is UITextField || current is UITextView { return false }
-                view = current.superview
-            }
-            return true
-        }
-
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-            true
-        }
-    }
-}
+// KeyboardDismissal and `keyboardDoneButton()` moved to ReadTime/PlatformUtil/PlatformBits.swift.
 
 // MARK: - Reusable views
 

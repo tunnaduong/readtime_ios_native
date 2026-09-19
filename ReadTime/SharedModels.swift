@@ -1,6 +1,8 @@
 import SwiftUI
 import UIKit
+#if !SKIP
 import CryptoKit
+#endif
 
 // Models, storage, and colours shared by the app and its widgets.
 
@@ -10,8 +12,14 @@ enum AppGroup {
 
     /// The shared container, or the app's own Application Support folder if the group isn't available.
     static var containerURL: URL {
+        #if !SKIP
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier)
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        #else
+        // Android has no app-group concept, and (unlike iOS) no widget extension needs to
+        // share this data, so app-internal storage is the only path.
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        #endif
     }
 
     /// Where the data lived before widgets existed; still read once so nothing is lost.
@@ -267,7 +275,14 @@ enum CoverCache {
     }
 
     private static func fileURL(for url: URL) -> URL {
+        #if !SKIP
         let hash = SHA256.hash(data: Data(url.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined()
+        #else
+        // TODO(android): swap for a real SHA-256 (e.g. `java.security.MessageDigest` via Skip
+        // Kotlin interop) if cache-key collisions across cover URLs become a concern; this is
+        // just a stable, unique-enough filename per URL for now.
+        let hash = String(format: "%016x", abs(url.absoluteString.hashValue))
+        #endif
         return directory.appendingPathComponent(hash).appendingPathExtension("jpg")
     }
 
