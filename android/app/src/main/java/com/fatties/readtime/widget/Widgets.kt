@@ -14,7 +14,6 @@ import androidx.glance.LocalContext
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
-import androidx.glance.appwidget.LinearProgressIndicator
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
@@ -57,26 +56,26 @@ class CurrentBookWidget : GlanceAppWidget() {
                     EmptyState()
                 } else {
                     Row(modifier = GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                        Cover(entry, width = 60, height = 90)
-                        Spacer(GlanceModifier.width(12.dp))
+                        Cover(entry, width = 40, height = 60)
+                        Spacer(GlanceModifier.width(10.dp))
                         Column(modifier = GlanceModifier.defaultWeight()) {
                             Text(
                                 book.title,
                                 maxLines = 2,
                                 style = TextStyle(
                                     color = GlanceTheme.colors.onSurface,
-                                    fontSize = 15.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                 ),
                             )
                             Text(
                                 book.author,
                                 maxLines = 1,
-                                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 13.sp),
+                                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
                             )
-                            Spacer(GlanceModifier.height(8.dp))
-                            ProgressLine(book.progress)
                             Spacer(GlanceModifier.height(6.dp))
+                            ProgressLine(book.progress)
+                            Spacer(GlanceModifier.height(4.dp))
                             Row(modifier = GlanceModifier.fillMaxWidth()) {
                                 Text(
                                     LocalContext.current.getString(
@@ -84,12 +83,12 @@ class CurrentBookWidget : GlanceAppWidget() {
                                         book.currentPage,
                                         book.totalPages,
                                     ),
-                                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
+                                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 11.sp),
                                     modifier = GlanceModifier.defaultWeight(),
                                 )
                                 Text(
                                     "${(book.progress * 100).roundToInt()}%",
-                                    style = TextStyle(color = ColorProvider(GREEN), fontSize = 12.sp),
+                                    style = TextStyle(color = ColorProvider(GREEN), fontSize = 11.sp),
                                 )
                             }
                         }
@@ -108,7 +107,7 @@ class DailyGoalWidget : GlanceAppWidget() {
             WidgetSurface {
                 Row(modifier = GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                     GoalRing(entry)
-                    Spacer(GlanceModifier.width(16.dp))
+                    Spacer(GlanceModifier.width(12.dp))
                     Column(modifier = GlanceModifier.defaultWeight()) {
                         Text(
                             if (entry.streak > 0) {
@@ -119,11 +118,11 @@ class DailyGoalWidget : GlanceAppWidget() {
                             maxLines = 2,
                             style = TextStyle(
                                 color = if (entry.streak > 0) ColorProvider(AMBER) else GlanceTheme.colors.onSurfaceVariant,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = if (entry.streak > 0) FontWeight.Medium else FontWeight.Normal,
                             ),
                         )
-                        Spacer(GlanceModifier.height(10.dp))
+                        Spacer(GlanceModifier.height(6.dp))
                         WeekDots(entry)
                     }
                 }
@@ -134,13 +133,16 @@ class DailyGoalWidget : GlanceAppWidget() {
 
 @Composable
 private fun WidgetSurface(content: @Composable () -> Unit) {
+    // The app's card colour, picked for the widget host's current light/dark mode.
+    val night = (LocalContext.current.resources.configuration.uiMode and
+        android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     GlanceTheme {
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(GlanceTheme.colors.widgetBackground)
+                .background(ColorProvider(if (night) Color(0xFF1C1D23) else Color.White))
                 .cornerRadius(16.dp)
-                .padding(14.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
                 .clickable(actionStartActivity(android.content.Intent(LocalContext.current, MainActivity::class.java))),
         ) {
             content()
@@ -179,22 +181,32 @@ private fun Cover(entry: WidgetEntry, width: Int, height: Int) {
 
 @Composable
 private fun ProgressLine(progress: Float) {
-    LinearProgressIndicator(
-        progress = progress.coerceIn(0f, 1f),
-        modifier = GlanceModifier.fillMaxWidth().height(6.dp).cornerRadius(3.dp),
-        color = ColorProvider(GREEN),
-        backgroundColor = ColorProvider(PURPLE.copy(alpha = 0.18f)),
+    val density = LocalContext.current.resources.displayMetrics.density
+    val height = (5 * density).toInt()
+    Image(
+        provider = ImageProvider(WidgetGraphics.progressLine(widthPx = 600, heightPx = height, progress = progress)),
+        contentDescription = null,
+        contentScale = ContentScale.FillBounds,
+        modifier = GlanceModifier.fillMaxWidth().height(5.dp),
     )
 }
 
 @Composable
 private fun GoalRing(entry: WidgetEntry) {
+    val density = LocalContext.current.resources.displayMetrics.density
+    Box(modifier = GlanceModifier.size(64.dp), contentAlignment = Alignment.Center) {
+        Image(
+            provider = ImageProvider(WidgetGraphics.ring((64 * density).toInt(), entry.progress)),
+            contentDescription = null,
+            modifier = GlanceModifier.size(64.dp),
+        )
+        GoalRingLabels(entry)
+    }
+}
+
+@Composable
+private fun GoalRingLabels(entry: WidgetEntry) {
     Column(
-        modifier = GlanceModifier
-            .size(92.dp)
-            .cornerRadius(46.dp)
-            .background(ColorProvider(PURPLE.copy(alpha = 0.12f)))
-            .padding(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -202,14 +214,14 @@ private fun GoalRing(entry: WidgetEntry) {
             "${entry.minutesToday}",
             style = TextStyle(
                 color = ColorProvider(PURPLE),
-                fontSize = 22.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
             ),
         )
         Text(
             LocalContext.current.getString(R.string.widget_of_n_min, entry.dailyGoal),
             maxLines = 1,
-            style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 11.sp),
+            style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 9.sp),
         )
     }
 }
@@ -225,13 +237,13 @@ private fun WeekDots(entry: WidgetEntry) {
             ) {
                 Text(
                     day.format(formatter),
-                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 10.sp),
+                    style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 9.sp),
                 )
-                Spacer(GlanceModifier.height(4.dp))
+                Spacer(GlanceModifier.height(3.dp))
                 Box(
                     modifier = GlanceModifier
-                        .size(10.dp)
-                        .cornerRadius(5.dp)
+                        .size(8.dp)
+                        .cornerRadius(4.dp)
                         .background(
                             ColorProvider(
                                 when {

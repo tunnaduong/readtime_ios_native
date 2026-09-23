@@ -3,6 +3,7 @@ package com.fatties.readtime.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -86,6 +87,7 @@ fun ReadTimeApp(store: ReadingStore, purchases: PurchaseManager, appearance: App
         Box(
             Modifier
                 .fillMaxSize()
+                .safeDrawingPadding()
                 .imePadding()
         ) {
             OnboardingScreen(store = store)

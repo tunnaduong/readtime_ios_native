@@ -81,8 +81,18 @@ text (`s_daily_goal`, `s_page_n_of_n`, …). Re-run it after editing the catalog
 
 ## Verification status
 
-- `gradle assembleDebug` succeeds.
-- Runs on the `Medium_Phone_API_35` emulator.
+Checked on a Pixel 9 Pro API 30 emulator:
+
+- Onboarding, demo content, and the Home tab render; the launcher icon is the
+  adaptive one (round mask, purple background).
+- AdMob's test banner loads at the top of Home.
+- Both widgets work on the home screen, show the empty state with no books, and
+  refresh themselves when the app saves.
+- Language and appearance are changed from Settings and survive a restart.
+
+Not yet exercised: Premium (needs the product in Play Console and a build
+installed from a Play track), reminders firing on schedule, and CSV/backup
+import-export.
 
 ### What to check first on a device
 
