@@ -11,14 +11,26 @@ keytool -genkeypair -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 \
         -validity 10000 -alias upload
 ```
 
-Then copy `keystore.properties.example` to `android/keystore.properties` and fill
-in the four values. Both files are git-ignored — keep a backup of the keystore
-somewhere safe; losing it means you can never update the app under the same key
-unless Play App Signing is enabled (it is, for new apps, so the upload key can be
-reset by Google support).
+`keytool` asks for the password itself — nothing needs to be typed into a file.
 
-Without `keystore.properties` a release build is signed with the debug key so it
-can still be installed locally. Play rejects debug-signed uploads.
+Then tell the build where the key is, either by exporting the values:
+
+```bash
+export READTIME_KEYSTORE=upload-keystore.jks
+export READTIME_KEYSTORE_PASSWORD='…'
+export READTIME_KEY_ALIAS=upload
+export READTIME_KEY_PASSWORD='…'
+```
+
+or by copying `keystore.properties.example` to `android/keystore.properties` and
+filling in the four values. Both the keystore and that file are git-ignored. Keep
+a backup of the keystore: losing it means you cannot update the app under the same
+upload key (Play App Signing lets Google reset it, but that is a support ticket).
+
+**A release build with no key configured comes out unsigned**, and Gradle prints a
+warning saying so. It never falls back to the debug key, because Play rejects
+debug-signed uploads — that is what "Bạn đã tải lên APK hoặc Android App Bundle đã
+được ký ở chế độ gỡ lỗi" means. For local testing, install the debug build.
 
 ## 2. Fill in the real service IDs
 

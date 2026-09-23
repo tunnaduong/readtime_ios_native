@@ -7,10 +7,16 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-// Release signing, kept out of git: copy android/keystore.properties.example and fill it in.
+// Release signing. Values come from the environment first (so passwords need not be
+// written down anywhere), then from android/keystore.properties, which is git-ignored.
 val keystoreProperties = Properties()
 val keystoreFile = rootProject.file("keystore.properties")
 if (keystoreFile.exists()) keystoreFile.inputStream().use { keystoreProperties.load(it) }
+
+fun signingValue(environmentName: String, propertyName: String): String? =
+    System.getenv(environmentName) ?: keystoreProperties.getProperty(propertyName)
+
+val releaseStorePath: String? = signingValue("READTIME_KEYSTORE", "storeFile")
 
 android {
     namespace = "com.fatties.readtime"
@@ -37,21 +43,26 @@ android {
     }
 
     signingConfigs {
-        if (keystoreFile.exists()) {
+        if (releaseStorePath != null) {
             create("release") {
-                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = rootProject.file(releaseStorePath)
+                storePassword = signingValue("READTIME_KEYSTORE_PASSWORD", "storePassword")
+                keyAlias = signingValue("READTIME_KEY_ALIAS", "keyAlias") ?: "upload"
+                keyPassword = signingValue("READTIME_KEY_PASSWORD", "keyPassword")
             }
+        } else {
+            logger.warn(
+                "ReadTime: no upload key configured, so release builds are unsigned. " +
+                    "See android/RELEASE.md."
+            )
         }
     }
 
     buildTypes {
         release {
-            // Falls back to the debug key so a release build can be smoke-tested locally.
-            // Play rejects debug-signed uploads, so this can't ship by accident.
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            // Never falls back to the debug key: Play rejects debug-signed uploads, and a
+            // build that looks signed but isn't wastes a trip through the Console.
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
