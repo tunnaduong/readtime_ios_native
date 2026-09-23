@@ -1,90 +1,79 @@
 import java.util.Properties
 
 plugins {
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.android.application)
-    id("skip-build-plugin")
-}
-
-skip {
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(libs.versions.jvm.get().toString())
-    }
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
-    namespace = group as String
-    compileSdk = libs.versions.android.sdk.compile.get().toInt()
-    compileOptions {
-        sourceCompatibility = JavaVersion.toVersion(libs.versions.jvm.get())
-        targetCompatibility = JavaVersion.toVersion(libs.versions.jvm.get())
-    }
-    packaging {
-        jniLibs {
-            keepDebugSymbols.add("**/*.so")
-            pickFirsts.add("**/*.so")
-            // this option would compress JNI .so files and reduce overall size for Skip Fuse apps, but cost more at install time
-            //useLegacyPackaging = true
-        }
-    }
+    namespace = "com.fatties.readtime"
+    compileSdk = 35
 
     defaultConfig {
-        minSdk = libs.versions.android.sdk.min.get().toInt()
-        targetSdk = libs.versions.android.sdk.compile.get().toInt()
-        // skip.tools.skip-build-plugin will automatically use Skip.env properties for:
-        // applicationId = ANDROID_APPLICATION_ID ?? PRODUCT_BUNDLE_IDENTIFIER
-        // versionCode = CURRENT_PROJECT_VERSION
-        // versionName = MARKETING_VERSION
-    }
+        applicationId = "com.fatties.readtime"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0"
+        resourceConfigurations += listOf("en", "vi", "es", "ja", "zh-rCN")
 
-    buildFeatures {
-        buildConfig = true
-    }
-
-    lint {
-        disable.add("Instantiatable")
-        disable.add("MissingPermission")
-    }
-
-    dependenciesInfo {
-        // Disables dependency metadata when building APKs.
-        includeInApk = false
-        // Disables dependency metadata when building Android App Bundles.
-        includeInBundle = false
-    }
-
-    // default signing configuration tries to load from keystore.properties
-    // see: https://skip.dev/docs/deployment/#export-signing
-    signingConfigs {
-        val keystorePropertiesFile = file("keystore.properties")
-        create("release") {
-            if (keystorePropertiesFile.isFile) {
-                val keystoreProperties = Properties()
-                keystoreProperties.load(keystorePropertiesFile.inputStream())
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-            } else {
-                // when there is no keystore.properties file, fall back to signing with debug config
-                keyAlias = signingConfigs.getByName("debug").keyAlias
-                keyPassword = signingConfigs.getByName("debug").keyPassword
-                storeFile = signingConfigs.getByName("debug").storeFile
-                storePassword = signingConfigs.getByName("debug").storePassword
-            }
-        }
+        // AdMob ids. The defaults are Google's own test ids; override them in
+        // android/local.properties with admobAppId / admobBannerUnitId / admobInterstitialUnitId.
+        val properties = Properties()
+        val propertiesFile = rootProject.file("local.properties")
+        if (propertiesFile.exists()) propertiesFile.inputStream().use { properties.load(it) }
+        fun property(name: String, fallback: String): String = properties.getProperty(name) ?: fallback
+        manifestPlaceholders["admobAppId"] = property("admobAppId", "ca-app-pub-3940256099942544~3347511713")
+        buildConfigField("String", "ADMOB_BANNER_UNIT_ID", "\"${property("admobBannerUnitId", "ca-app-pub-3940256099942544/6300978111")}\"")
+        buildConfigField("String", "ADMOB_INTERSTITIAL_UNIT_ID", "\"${property("admobInterstitialUnitId", "ca-app-pub-3940256099942544/1033173712")}\"")
+        buildConfigField("String", "PREMIUM_PRODUCT_ID", "\"com.fatties.readtime.premium\"")
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
-            isShrinkResources = true
-            isDebuggable = false // can be set to true for debugging release build, but needs to be false when uploading to store
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+}
+
+dependencies {
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.play.services.ads)
+    implementation(libs.billing.ktx)
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.coil.compose)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 }

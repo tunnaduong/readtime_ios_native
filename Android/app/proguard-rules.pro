@@ -1,10 +1,3 @@
--keeppackagenames **
--keep class skip.** { *; }
--keep class tools.skip.** { *; }
--keep class kotlin.jvm.functions.** {*;}
--keep class com.sun.jna.** { *; }
--dontwarn java.awt.**
--keep class * implements com.sun.jna.** { *; }
--keep class * implements skip.bridge.** { *; }
--keep class **._ModuleBundleAccessor_* { *; }
--keep class read.time.** { *; }
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.**
+-keepclassmembers class com.fatties.readtime.data.** { *; }

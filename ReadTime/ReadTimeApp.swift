@@ -6,11 +6,8 @@ import UIKit
 import WidgetKit
 import StoreKit
 #endif
-#if !SKIP
 import UniformTypeIdentifiers
-#endif
 
-#if !SKIP
 @main
 struct ReadTimeApp: App {
     @StateObject private var store = ReadingStore()
@@ -66,7 +63,6 @@ struct ReadTimeApp: App {
         }
     }
 }
-#endif
 
 #if DEBUG
 /// Opens a chosen screen straight away, for capturing App Store screenshots in every language:
@@ -161,11 +157,6 @@ final class ReadingStore: ObservableObject {
             reminderTime = saved.reminderTime ?? reminderTime
             selectedBookID = saved.selectedBookID
             DemoContent.markLegacyItems(in: self)
-            #if SKIP
-            if reminderEnabled {
-                ReminderManager.schedule(at: reminderTime, weekdays: routine?.weekdays ?? Array(1...7))
-            }
-            #endif
         } else {
             needsOnboarding = true
         }
@@ -176,11 +167,7 @@ final class ReadingStore: ObservableObject {
             activeSessionStartedAt = session.startedAt
         }
         autosave = objectWillChange
-            #if !SKIP
             .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
-            #else
-            .debounce(for: 0.3, scheduler: DispatchQueue.main)
-            #endif
             .sink { [weak self] _ in self?.save() }
     }
 
@@ -271,11 +258,7 @@ final class ReadingStore: ObservableObject {
         var calendar = Calendar.current
         calendar.firstWeekday = 2
         guard let monday = calendar.dateInterval(of: .weekOfYear, for: .now)?.start else { return [] }
-        var days: [Date] = []
-        for offset in 0..<7 {
-            if let day = calendar.date(byAdding: .day, value: offset, to: monday) { days.append(day) }
-        }
-        return days
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: monday) }
     }
 
     /// Whether the daily goal applies on this day.
@@ -378,8 +361,7 @@ final class ReadingStore: ObservableObject {
     /// The book read longest on a day, for the calendar cover.
     func topActivity(on day: Date) -> ReadingActivity? {
         let sessions = activities.filter { Calendar.current.isDate($0.date, inSameDayAs: day) }
-        var minutesByTitle: [String: Int] = [:]
-        for session in sessions { minutesByTitle[session.bookTitle, default: 0] += session.minutes }
+        let minutesByTitle = Dictionary(grouping: sessions, by: \.bookTitle).mapValues { $0.reduce(0) { $0 + $1.minutes } }
         guard let title = minutesByTitle.max(by: { $0.value < $1.value })?.key else { return nil }
         return sessions.first { $0.bookTitle == title }
     }
@@ -449,7 +431,7 @@ final class ReadingStore: ObservableObject {
         func key(_ book: Book) -> String {
             "\(book.title.lowercased().trimmingCharacters(in: .whitespaces))|\(book.author.lowercased().trimmingCharacters(in: .whitespaces))"
         }
-        var existing = Set<String>(books.map { key($0) })
+        var existing = Set(books.map(key))
         var added = 0
         for book in imported where !existing.contains(key(book)) {
             books.append(book)
@@ -658,7 +640,7 @@ struct HomeView: View {
                     }
                 }
 
-                SectionHeader(title: "Recent Activities", systemImage: "arrow.triangle.2.circlepath") { EmptyView() }
+                SectionHeader(title: "Recent Activities", systemImage: "arrow.triangle.2.circlepath")
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 12) {
@@ -697,7 +679,7 @@ struct HomeView: View {
                 .environmentObject(store)
                 .environmentObject(purchases)
         }
-        .bottomBar {
+        .safeAreaInset(edge: .bottom) {
             HStack {
                 Spacer()
                 if let activeBook = store.activeBook, store.activeSessionBookID == activeBook.id {
@@ -734,7 +716,7 @@ struct HomeView: View {
                             }
                         }
                         .clipShape(Capsule())
-                        .tappableCapsule()
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
@@ -749,7 +731,7 @@ struct HomeView: View {
                             .padding(.vertical, 15)
                     }
                     .buttonStyle(.borderedProminent)
-                    .capsuleButtonShape()
+                    .buttonBorderShape(.capsule)
                     .tint(.readTimePurple)
                     .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
                 }
@@ -808,17 +790,17 @@ struct WeekTracker: View {
     var tiled = false
 
     var body: some View {
-        HStack(spacing: tiled ? 6.0 : 5.0) {
+        HStack(spacing: tiled ? 6 : 5) {
             ForEach(store.currentWeekDays, id: \.self) { day in
                 let isToday = Calendar.current.isDateInToday(day)
                 let scheduled = store.isScheduled(day)
                 let goalMet = store.minutesRead(on: day) >= store.dailyGoal
                 let color = isToday ? todayColor : Color.readTimePurple
                 VStack(spacing: 5) {
-                    Text(DateText.string(day, template: "EEE"))
+                    Text(day.formatted(.dateTime.weekday(.abbreviated)))
                         .font(.caption.weight(.medium))
                         .foregroundStyle(isToday ? todayColor : Color.primary)
-                    Text(DateText.string(day, template: "d"))
+                    Text(day.formatted(.dateTime.day()))
                         .font(.caption)
                         .foregroundStyle(isToday ? AnyShapeStyle(todayColor) : AnyShapeStyle(.secondary))
                     Group {
@@ -826,7 +808,7 @@ struct WeekTracker: View {
                         if scheduled || goalMet {
                             Image(systemName: goalMet ? "checkmark.circle.fill" : "circle")
                                 .font(.title3)
-                                .foregroundStyle(color.opacity(day > .now && !isToday ? 0.4 : 1.0))
+                                .foregroundStyle(color.opacity(day > .now && !isToday ? 0.4 : 1))
                         } else {
                             // Not part of the routine: a quiet dot instead of a goal circle.
                             Circle()
@@ -837,7 +819,7 @@ struct WeekTracker: View {
                     .frame(height: 26)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, tiled ? 9.0 : 7.0)
+                .padding(.vertical, tiled ? 9 : 7)
                 .background(
                     isToday ? todayColor.opacity(tiled ? 0.12 : 0.07) : (tiled ? Color.readTimeBackground : .clear),
                     in: RoundedRectangle(cornerRadius: 10)
@@ -848,7 +830,7 @@ struct WeekTracker: View {
                             .stroke(todayColor, lineWidth: 1)
                     }
                 }
-                .accessibilityCombined()
+                .accessibilityElement(children: .combine)
                 .accessibilityValue(goalMet ? Text("Goal met") : (scheduled ? Text("Goal not met") : Text("Rest day")))
             }
         }
@@ -928,7 +910,7 @@ struct JournalPreview: View {
                 }
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.secondary.opacity(0.6))
+                    .foregroundStyle(.tertiary)
             }
             if let entry {
                 Text(entry.text)
@@ -949,7 +931,7 @@ struct JournalPreview: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .readTimeCard()
-        .tappableRect()
+        .contentShape(Rectangle())
     }
 }
 
@@ -979,7 +961,7 @@ struct JournalView: View {
                             .padding(.vertical, 6)
                     }
                     .buttonStyle(.borderedProminent)
-                    .capsuleButtonShape()
+                    .buttonBorderShape(.capsule)
                     .tint(.readTimePurple)
                     .padding(.top, 6)
                 }
@@ -1055,7 +1037,7 @@ struct JournalEntryRow: View {
         }
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tappableRect()
+        .contentShape(Rectangle())
     }
 }
 
@@ -1180,8 +1162,8 @@ struct GoalsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Set your goals", systemImage: "slider.horizontal.3")
                         .font(.headline)
-                    BoundedStepper(String(localized: "Daily goal: \(store.dailyGoal) minutes"), value: $store.dailyGoal, in: 5...600, step: 5)
-                    BoundedStepper(String(localized: "Yearly goal: \(store.yearlyBookGoal) books"), value: $store.yearlyBookGoal, in: 1...100)
+                    Stepper("Daily goal: \(store.dailyGoal) minutes", value: $store.dailyGoal, in: 5...600, step: 5)
+                    Stepper("Yearly goal: \(store.yearlyBookGoal) books", value: $store.yearlyBookGoal, in: 1...100)
                 }
                 .padding(16)
                 .readTimeCard()
@@ -1287,7 +1269,7 @@ struct RoutineGoalCard: View {
                     }
                     .buttonStyle(.bordered)
                 }
-                .capsuleButtonShape()
+                .buttonBorderShape(.capsule)
                 .tint(.readTimePurple)
                 .padding(.top, 4)
             }
@@ -1371,7 +1353,6 @@ enum ReminderManager {
     private static let dailyIdentifier = "readtime.daily-reminder"
     private static let allIdentifiers = [dailyIdentifier] + (1...7).map { "\(dailyIdentifier).\($0)" }
 
-    #if !SKIP
     /// Repeats at `date`'s time on the given `Calendar` weekdays (every day by default).
     static func schedule(at date: Date, weekdays: [Int] = Array(1...7)) {
         let center = UNUserNotificationCenter.current()
@@ -1401,55 +1382,7 @@ enum ReminderManager {
     static func cancel() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: allIdentifiers)
     }
-    #else
-    // Android (Skip) only delivers one-off notifications, so the next four weeks of reminders
-    // are queued individually and topped up whenever the app starts (see `ReadingStore.init`).
-    private static let androidWindowDays = 28
-    private static let androidIdentifiers = (0..<androidWindowDays).map { "\(dailyIdentifier).a\($0)" }
-
-    static func schedule(at date: Date, weekdays: [Int] = Array(1...7)) {
-        Task { @MainActor in
-            let center = UNUserNotificationCenter.current()
-            if center.delegate == nil { center.delegate = ReminderPresenter.shared }
-            let granted = (try? await center.requestAuthorization(options: [UNAuthorizationOptions.alert, UNAuthorizationOptions.sound])) ?? false
-            guard granted else { return }
-            center.removePendingNotificationRequests(withIdentifiers: androidIdentifiers)
-
-            let calendar = Calendar.current
-            let time = calendar.dateComponents([.hour, .minute], from: date)
-            let today = calendar.startOfDay(for: Date())
-            var index = 0
-            for offset in 0..<androidWindowDays {
-                guard let day = calendar.date(byAdding: .day, value: offset, to: today),
-                      weekdays.contains(calendar.component(.weekday, from: day)),
-                      let fire = calendar.date(bySettingHour: time.hour ?? 20, minute: time.minute ?? 0, second: 0, of: day),
-                      fire > Date() else { continue }
-                let content = UNMutableNotificationContent()
-                content.title = String(localized: "A little reading time")
-                content.body = String(localized: "Your book is waiting for the next chapter.")
-                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: fire.timeIntervalSinceNow, repeats: false)
-                try? await center.add(UNNotificationRequest(identifier: androidIdentifiers[index], content: content, trigger: trigger))
-                index += 1
-            }
-        }
-    }
-
-    static func cancel() {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: androidIdentifiers)
-    }
-    #endif
 }
-
-#if SKIP
-/// Skip only posts a notification when a delegate asks for it to be shown.
-final class ReminderPresenter: UNUserNotificationCenterDelegate {
-    static let shared = ReminderPresenter()
-
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [UNNotificationPresentationOptions.banner, UNNotificationPresentationOptions.sound]
-    }
-}
-#endif
 
 // MARK: - Goal creation
 
@@ -1469,12 +1402,12 @@ enum GoalFormat {
     static let mondayFirstWeekdays = [2, 3, 4, 5, 6, 7, 1]
 
     static func weekdayName(_ weekday: Int) -> String {
-        DateText.shortWeekdaySymbols[weekday - 1]
+        Calendar.current.shortStandaloneWeekdaySymbols[weekday - 1]
     }
 
     static func daysLabel(_ weekdays: Set<Int>) -> String {
         if weekdays.count == 7 { return String(localized: "Every day") }
-        return mondayFirstWeekdays.filter { weekdays.contains($0) }.map { weekdayName($0) }.joined(separator: ", ")
+        return mondayFirstWeekdays.filter(weekdays.contains).map(weekdayName).joined(separator: ", ")
     }
 
     static func minutesLabel(_ minutes: Int) -> String {
@@ -1491,8 +1424,8 @@ enum GoalFormat {
     static func startLabel(_ date: Date) -> String {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return String(localized: "Today") }
-        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())), calendar.isDate(date, inSameDayAs: tomorrow) { return String(localized: "Tomorrow") }
-        return DateText.abbreviated(date)
+        if calendar.isDateInTomorrow(date) { return String(localized: "Tomorrow") }
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 }
 
@@ -1505,7 +1438,7 @@ struct GoalDraft {
 
     var routine: ReadingRoutine {
         ReadingRoutine(
-            weekdays: GoalFormat.mondayFirstWeekdays.filter { weekdays.contains($0) },
+            weekdays: GoalFormat.mondayFirstWeekdays.filter(weekdays.contains),
             startDate: startDate,
             weeks: weeks
         )
@@ -1538,9 +1471,9 @@ struct CreateGoalFlow: View {
 
     private var title: LocalizedStringKey {
         switch step {
-        case .dailySpec: LocalizedStringKey("Create Daily Goal")
-        case .customDays, .routine: LocalizedStringKey("Custom Read Goal")
-        case .preview: LocalizedStringKey("Goal Preview")
+        case .dailySpec: "Create Daily Goal"
+        case .customDays, .routine: "Custom Read Goal"
+        case .preview: "Goal Preview"
         }
     }
 
@@ -1572,7 +1505,7 @@ struct CreateGoalFlow: View {
                         .accessibilityLabel("Cancel")
                 }
             }
-            .bottomBar { buttons }
+            .safeAreaInset(edge: .bottom) { buttons }
         }
     }
 
@@ -1608,8 +1541,8 @@ struct CreateGoalFlow: View {
             }
         }
         .font(.headline)
-        .largeControl()
-        .capsuleButtonShape()
+        .controlSize(.large)
+        .buttonBorderShape(.capsule)
         .tint(.readTimePurple)
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
@@ -1655,28 +1588,13 @@ struct ChoiceChip: View {
             .padding(.vertical, 8)
             .background(isSelected ? Color.readTimePurple.opacity(0.1) : .clear, in: Capsule())
             .overlay(Capsule().stroke(isSelected ? Color.readTimePurple : Color.secondary.opacity(0.3)))
-            .tappableCapsule()
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .selectedTrait(isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
-#if SKIP
-/// Custom `Layout`s don't run on Android yet, so chips sit in a horizontally scrolling row there.
-struct FlowLayout<Content: View>: View {
-    var spacing: CGFloat = 8
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: spacing) {
-                content()
-            }
-        }
-    }
-}
-#else
 /// Lays chips out left to right, wrapping onto new rows.
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
@@ -1713,7 +1631,6 @@ struct FlowLayout: Layout {
         }
     }
 }
-#endif
 
 struct ReadPerDaySection: View {
     @Binding var minutes: Int
@@ -1866,16 +1783,10 @@ struct ChooseStartDaySheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
-                #if !SKIP
                 DatePicker("Start date", selection: $selection, in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
-                    .graphicalDatePicker()
+                    .datePickerStyle(.graphical)
                     .padding(12)
                     .readTimeCard()
-                #else
-                DatePicker("Start date", selection: $selection, displayedComponents: DatePickerComponents.date)
-                    .padding(12)
-                    .readTimeCard()
-                #endif
                 Spacer()
             }
             .padding(20)
@@ -1888,7 +1799,7 @@ struct ChooseStartDaySheet: View {
                         .accessibilityLabel("Cancel")
                 }
             }
-            .bottomBar {
+            .safeAreaInset(edge: .bottom) {
                 Button {
                     date = Calendar.current.startOfDay(for: selection)
                     dismiss()
@@ -1896,8 +1807,8 @@ struct ChooseStartDaySheet: View {
                     Text("Select Date").font(.headline).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .capsuleButtonShape()
-                .largeControl()
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
                 .tint(.readTimePurple)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 10)
@@ -1914,11 +1825,7 @@ struct GoalPreview: View {
         var calendar = Calendar.current
         calendar.firstWeekday = 2
         guard let monday = calendar.dateInterval(of: .weekOfYear, for: draft.startDate)?.start else { return [] }
-        var days: [Date] = []
-        for offset in 0..<7 {
-            if let day = calendar.date(byAdding: .day, value: offset, to: monday) { days.append(day) }
-        }
-        return days
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: monday) }
     }
 
     var body: some View {
@@ -1948,9 +1855,9 @@ struct GoalPreview: View {
                     ForEach(firstWeek, id: \.self) { day in
                         let active = routine.includes(day)
                         VStack(spacing: 5) {
-                            Text(DateText.string(day, template: "EEE"))
+                            Text(day.formatted(.dateTime.weekday(.abbreviated)))
                                 .font(.caption.weight(.medium))
-                            Text(DateText.string(day, template: "d"))
+                            Text(day.formatted(.dateTime.day()))
                                 .font(.caption)
                             if active {
                                 Image(systemName: "circle")
@@ -2027,24 +1934,24 @@ struct LibraryView: View {
         // A List (not a ScrollView) so rows support swipe actions.
         List {
             AdBanner()
-                .rowInsets(top: 4, leading: 20, bottom: 4, trailing: 20)
+                .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
             Picker("Book status", selection: $selection) {
-                Text("All").tag(nil as BookStatus?)
+                Text("All").tag(BookStatus?.none)
                 ForEach(BookStatus.allCases) { status in
-                    Text(status.title).tag(status as BookStatus?)
+                    Text(status.title).tag(Optional(status))
                 }
             }
             .pickerStyle(.segmented)
-            .rowInsets(top: 8, leading: 20, bottom: 10, trailing: 20)
+            .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 10, trailing: 20))
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
 
             ForEach(books) { book in
                 BookLibraryCard(book: book)
-                    .rowInsets(top: 6, leading: 20, bottom: 6, trailing: 20)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -2291,9 +2198,9 @@ struct AddBookView: View {
                     TextField("Title", text: $title)
                     TextField("Author", text: $author)
                     TextField("Genre", text: $genre)
-                    BoundedStepper(String(localized: "Pages: \(pageCount)"), value: $pageCount, in: 1...5_000)
+                    Stepper("Pages: \(pageCount)", value: $pageCount, in: 1...5_000)
                     if editing != nil {
-                        BoundedStepper(String(localized: "Current page: \(currentPage)"), value: $currentPage, in: 0...pageCount)
+                        Stepper("Current page: \(currentPage)", value: $currentPage, in: 0...pageCount)
                     }
                 }
                 Section("Shelf") {
@@ -2372,7 +2279,7 @@ struct AddBookView: View {
         isLoadingPhoto = true
         photoError = nil
         do {
-            guard let data = try await item.loadCoverData() else { throw CoverError.unreadableImage }
+            guard let data = try await item.loadCoverData() else { throw CocoaError(.fileReadNoSuchFile) }
             coverURL = try CoverCache.saveUploadedCover(data)
             coverName = nil
         } catch {
@@ -2430,8 +2337,8 @@ struct BookSearchResultRow: View {
                 .font(.title3)
                 .foregroundStyle(Color.readTimePurple)
         }
-        .tappableRect()
-        .accessibilityCombined()
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -2481,7 +2388,7 @@ enum BookSearch {
         if !googleBooksAPIKey.isEmpty {
             components.queryItems?.append(URLQueryItem(name: "key", value: googleBooksAPIKey))
         }
-        let response = try JSONDecoder().decode(GoogleBooksResponse.self, from: await fetch(components.url!))
+        let response: GoogleBooksResponse = try await fetch(components.url!)
         return (response.items ?? []).compactMap { item in
             let info = item.volumeInfo
             guard let title = info.title, !title.isEmpty else { return nil }
@@ -2489,25 +2396,15 @@ enum BookSearch {
             let thumbnail = (info.imageLinks?.thumbnail ?? info.imageLinks?.smallThumbnail)?
                 .replacingOccurrences(of: "http://", with: "https://")
                 .replacingOccurrences(of: "&edge=curl", with: "")
-            var fullTitle = title
-            if let subtitle = info.subtitle, !subtitle.isEmpty { fullTitle += ": " + subtitle }
-            var genre: String? = nil
-            if let category = info.categories?.first { genre = category.components(separatedBy: " / ").first }
-            var pageCount: Int? = nil
-            if let pages = info.pageCount, pages > 0 { pageCount = pages }
-            var year: String? = nil
-            if let published = info.publishedDate { year = String(published.prefix(4)) }
-            var thumbnailURL: URL? = nil
-            if let thumbnail { thumbnailURL = URL(string: thumbnail) }
             return BookSearchResult(
                 id: "google-\(item.id)",
-                title: fullTitle,
+                title: [title, info.subtitle].compactMap { $0 }.joined(separator: ": "),
                 authors: info.authors ?? [],
-                genre: genre,
-                pageCount: pageCount,
-                year: year,
-                thumbnailURL: thumbnailURL,
-                coverURL: thumbnailURL
+                genre: info.categories?.first?.components(separatedBy: " / ").first,
+                pageCount: info.pageCount.flatMap { $0 > 0 ? $0 : nil },
+                year: info.publishedDate.map { String($0.prefix(4)) },
+                thumbnailURL: thumbnail.flatMap(URL.init(string:)),
+                coverURL: thumbnail.flatMap(URL.init(string:))
             )
         }
     }
@@ -2519,38 +2416,31 @@ enum BookSearch {
             URLQueryItem(name: "limit", value: "20"),
             URLQueryItem(name: "fields", value: "key,title,author_name,first_publish_year,number_of_pages_median,cover_i,subject")
         ]
-        let response = try JSONDecoder().decode(OpenLibraryResponse.self, from: await fetch(components.url!))
+        let response: OpenLibraryResponse = try await fetch(components.url!)
         return response.docs.compactMap { doc in
             guard let title = doc.title, !title.isEmpty else { return nil }
-            var year: String? = nil
-            if let published = doc.first_publish_year { year = String(published) }
-            // `default=false` returns 404 instead of a blank image when there's no cover.
-            var thumbnailURL: URL? = nil, coverURL: URL? = nil
-            if let cover = doc.cover_i {
-                thumbnailURL = URL(string: "https://covers.openlibrary.org/b/id/\(cover)-M.jpg?default=false")
-                coverURL = URL(string: "https://covers.openlibrary.org/b/id/\(cover)-L.jpg?default=false")
-            }
             return BookSearchResult(
                 id: "openlibrary-\(doc.key)",
                 title: title,
                 authors: doc.author_name ?? [],
                 genre: doc.subject?.first,
                 pageCount: doc.number_of_pages_median,
-                year: year,
-                thumbnailURL: thumbnailURL,
-                coverURL: coverURL
+                year: doc.first_publish_year.map(String.init),
+                // `default=false` returns 404 instead of a blank image when there's no cover.
+                thumbnailURL: doc.cover_i.flatMap { URL(string: "https://covers.openlibrary.org/b/id/\($0)-M.jpg?default=false") },
+                coverURL: doc.cover_i.flatMap { URL(string: "https://covers.openlibrary.org/b/id/\($0)-L.jpg?default=false") }
             )
         }
     }
 
-    private static func fetch(_ url: URL) async throws -> Data {
+    private static func fetch<Response: Decodable>(_ url: URL) async throws -> Response {
         var request = URLRequest(url: url)
         request.setValue("ReadTime/\(AppInfo.version) (\(AppInfo.supportEmail))", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let status = (response as? HTTPURLResponse)?.statusCode, (200..<300).contains(status) else {
             throw URLError(.badServerResponse)
         }
-        return data
+        return try JSONDecoder().decode(Response.self, from: data)
     }
 
     private struct GoogleBooksResponse: Decodable {
@@ -2704,7 +2594,7 @@ struct ReadingCalendarCard: View {
     }
 
     private var weekdaySymbols: [String] {
-        let symbols = DateText.veryShortWeekdaySymbols
+        let symbols = calendar.veryShortStandaloneWeekdaySymbols
         let shift = calendar.firstWeekday - 1
         return Array(symbols[shift...] + symbols[..<shift])
     }
@@ -2713,17 +2603,14 @@ struct ReadingCalendarCard: View {
     private var days: [Date?] {
         guard let range = calendar.range(of: .day, in: .month, for: month) else { return [] }
         let leading = (calendar.component(.weekday, from: month) - calendar.firstWeekday + 7) % 7
-        var days = [Date?](repeating: nil, count: leading)
-        for day in range {
-            if let date = calendar.date(byAdding: .day, value: day - 1, to: month) { days.append(date) }
-        }
-        return days
+        let dates = range.compactMap { calendar.date(byAdding: .day, value: $0 - 1, to: month) }
+        return Array(repeating: nil, count: leading) + dates
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(DateText.string(month, template: "MMMMy"))
+                Text(month.formatted(.dateTime.month(.wide).year()))
                     .font(.headline)
                 Spacer()
                 Button { monthOffset += 1 } label: { Image(systemName: "chevron.left") }
@@ -2738,16 +2625,16 @@ struct ReadingCalendarCard: View {
 
             let columns = Array(repeating: GridItem(.flexible(), spacing: 5), count: 7)
             LazyVGrid(columns: columns, spacing: 5) {
-                ForEach(0..<weekdaySymbols.count, id: \.self) { index in
+                ForEach(weekdaySymbols.indices, id: \.self) { index in
                     Text(weekdaySymbols[index])
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
-                ForEach(0..<days.count, id: \.self) { index in
+                ForEach(days.indices, id: \.self) { index in
                     if let day = days[index] {
                         dayCell(day)
                     } else {
-                        Color.clear.aspectRatio(2.0 / 3.0, contentMode: .fit)
+                        Color.clear.aspectRatio(2 / 3, contentMode: .fit)
                     }
                 }
             }
@@ -2762,7 +2649,7 @@ struct ReadingCalendarCard: View {
         let isToday = calendar.isDateInToday(day)
         return RoundedRectangle(cornerRadius: 6)
             .fill(minutes > 0 ? Color.readTimePurple.opacity(0.35) : Color.secondary.opacity(0.08))
-            .aspectRatio(2.0 / 3.0, contentMode: .fit)
+            .aspectRatio(2 / 3, contentMode: .fit)
             .overlay {
                 if let top, top.coverName != nil || top.coverURL != nil {
                     CoverImage(coverName: top.coverName, coverURL: top.coverURL)
@@ -2771,7 +2658,7 @@ struct ReadingCalendarCard: View {
                 }
             }
             .overlay(alignment: .topLeading) {
-                Text(DateText.string(day, template: "d"))
+                Text(day.formatted(.dateTime.day()))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(top == nil ? Color.secondary : Color.white)
                     .shadow(color: top == nil ? .clear : .black.opacity(0.7), radius: 2)
@@ -2783,7 +2670,7 @@ struct ReadingCalendarCard: View {
                     RoundedRectangle(cornerRadius: 6).stroke(Color.readTimePurple, lineWidth: 2)
                 }
             }
-            .accessibilityIgnoringChildren()
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("\(day.formatted(date: .long, time: .omitted)), \(minutes) min"))
     }
 }
@@ -2795,9 +2682,9 @@ enum TrendPeriod: String, CaseIterable, Identifiable {
 
     var title: LocalizedStringKey {
         switch self {
-        case .week: LocalizedStringKey("7 Days")
-        case .month: LocalizedStringKey("30 Days")
-        case .year: LocalizedStringKey("12 Months")
+        case .week: "7 Days"
+        case .month: "30 Days"
+        case .year: "12 Months"
         }
     }
 
@@ -2835,9 +2722,9 @@ enum TrendPeriod: String, CaseIterable, Identifiable {
     func rangeLabel(for interval: DateInterval) -> String {
         let last = interval.end.addingTimeInterval(-1)
         if self == .year {
-            return "\(DateText.string(interval.start, template: "MMMy")) – \(DateText.string(last, template: "MMMy"))"
+            return "\(interval.start.formatted(.dateTime.month(.abbreviated).year())) – \(last.formatted(.dateTime.month(.abbreviated).year()))"
         }
-        return "\(DateText.string(interval.start, template: "dMMM")) – \(DateText.string(last, template: "dMMM"))"
+        return "\(interval.start.formatted(.dateTime.day().month(.abbreviated))) – \(last.formatted(.dateTime.day().month(.abbreviated)))"
     }
 }
 
@@ -2936,13 +2823,7 @@ struct TrendsSection: View {
     }
 
     static func duration(_ minutes: Int) -> String {
-        #if !SKIP
         Duration.seconds(minutes * 60).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
-        #else
-        let hours = minutes / 60, rest = minutes % 60
-        if hours == 0 { return String(localized: "\(rest) min") }
-        return rest == 0 ? String(localized: "\(hours) hr") : String(localized: "\(hours) hr, \(rest) min")
-        #endif
     }
 }
 
@@ -2976,10 +2857,10 @@ struct TrendCard: View {
                     Image(systemName: "chevron.down")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(expanded ? 180.0 : 0.0))
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
                         .padding(.top, 4)
                 }
-                .tappableRect()
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -3020,7 +2901,7 @@ struct InsightsCard: View {
                 value: store.pagesPerHour.map { Text("\($0) pages/hour") })
             Divider().padding(.leading, 52)
             row("Average rating", systemImage: "star.fill", color: .yellow,
-                value: store.averageRating.map { Text("\(String(format: "%.1f", $0)) stars") })
+                value: store.averageRating.map { Text("\($0.formatted(.number.precision(.fractionLength(1)))) stars") })
             Divider().padding(.leading, 52)
             row("Average book length", systemImage: "book.closed.fill", color: .gray,
                 value: store.averageFinishedLength.map { Text("\($0) pages") })
@@ -3138,8 +3019,8 @@ struct ReadingSessionView: View {
         NavigationStack {
             Group {
                 if let book {
-                    EverySecond { now in
-                        let seconds = now.timeIntervalSince(startedAt)
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        let seconds = context.date.timeIntervalSince(startedAt)
                         ScrollView {
                             VStack(spacing: 26) {
                                 VStack(spacing: 14) {
@@ -3153,7 +3034,7 @@ struct ReadingSessionView: View {
                                         .foregroundStyle(.secondary)
                                     Text(timeString(seconds))
                                         .font(.system(size: 52, weight: .bold, design: .rounded))
-                                        .monospacedDigits()
+                                        .monospacedDigit()
                                         .foregroundStyle(Color.readTimePurple)
                                         .padding(.top, 18)
                                     Button {
@@ -3165,7 +3046,7 @@ struct ReadingSessionView: View {
                                             .padding(.vertical, 14)
                                     }
                                     .buttonStyle(.bordered)
-                                    .capsuleButtonShape()
+                                    .buttonBorderShape(.capsule)
                                     .tint(.readTimePurple)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -3296,7 +3177,7 @@ struct FinishSessionView: View {
                             Text("Keep your progress accurate for next time.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                            BoundedStepper(String(localized: "Page \(currentPage) of \(book.totalPages)"), value: $currentPage, in: 1...book.totalPages)
+                            Stepper("Page \(currentPage) of \(book.totalPages)", value: $currentPage, in: 1...book.totalPages)
                         }
                         .padding(16)
                         .readTimeCard()
@@ -3331,7 +3212,7 @@ struct FinishSessionView: View {
                                 .padding(.vertical, 16)
                         }
                         .buttonStyle(.borderedProminent)
-                        .capsuleButtonShape()
+                        .buttonBorderShape(.capsule)
                         .tint(.readTimePurple)
                         .padding(.top, 6)
                     }
@@ -3381,7 +3262,7 @@ struct GoalsUpdatedView: View {
                     HStack(spacing: 6) {
                         ForEach(store.currentWeekDays, id: \.self) { day in
                             let scheduled = store.routine.map { $0.weekdays.contains(Calendar.current.component(.weekday, from: day)) } ?? true
-                            Text(DateText.string(day, template: "EEE"))
+                            Text(day.formatted(.dateTime.weekday(.abbreviated)))
                                 .font(.caption.weight(.medium))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
@@ -3396,7 +3277,7 @@ struct GoalsUpdatedView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .padding(.top, 4)
-                    WeekTracker(todayColor: Color.readTimeGreen, tiled: true)
+                    WeekTracker(todayColor: .readTimeGreen, tiled: true)
                 }
                 .padding(16)
                 .readTimeCard()
@@ -3423,7 +3304,7 @@ struct GoalsUpdatedView: View {
             .padding(20)
         }
         .background(Color.readTimeBackground.ignoresSafeArea())
-        .bottomBar {
+        .safeAreaInset(edge: .bottom) {
             Button(action: onConfirm) {
                 Text("Confirm")
                     .font(.headline)
@@ -3431,7 +3312,7 @@ struct GoalsUpdatedView: View {
                     .padding(.vertical, 16)
             }
             .buttonStyle(.borderedProminent)
-            .capsuleButtonShape()
+            .buttonBorderShape(.capsule)
             .tint(.readTimePurple)
             .padding(.horizontal, 20)
             .padding(.bottom, 8)
@@ -3478,7 +3359,7 @@ struct GoalRingCard: View {
         .padding(14)
         .frame(maxWidth: .infinity)
         .readTimeCard()
-        .accessibilityCombined()
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -3503,11 +3384,7 @@ enum CloudBackup {
     }
 
     static var isAvailable: Bool {
-        #if !SKIP
         FileManager.default.ubiquityIdentityToken != nil
-        #else
-        false // No iCloud on Android.
-        #endif
     }
 
     static var lastBackupDate: Date? {
@@ -3517,31 +3394,23 @@ enum CloudBackup {
     @MainActor
     static func backUp(_ store: ReadingStore) throws {
         guard isAvailable else { throw BackupError.iCloudUnavailable }
-        #if !SKIP
         let data = try JSONEncoder().encode(store.snapshot)
         NSUbiquitousKeyValueStore.default.set(data, forKey: backupKey)
         NSUbiquitousKeyValueStore.default.synchronize()
-        #endif
     }
 
     @MainActor
     static func restore(into store: ReadingStore) throws {
         guard isAvailable else { throw BackupError.iCloudUnavailable }
-        #if !SKIP
         NSUbiquitousKeyValueStore.default.synchronize()
-        #endif
         store.restore(from: try latestSnapshot())
     }
 
     private static func latestSnapshot() throws -> ReadingSnapshot {
-        #if !SKIP
         guard let data = NSUbiquitousKeyValueStore.default.data(forKey: backupKey) else {
             throw BackupError.noBackup
         }
         return try JSONDecoder().decode(ReadingSnapshot.self, from: data)
-        #else
-        throw BackupError.noBackup
-        #endif
     }
 }
 
@@ -3554,9 +3423,9 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 
     var title: LocalizedStringKey {
         switch self {
-        case .system: LocalizedStringKey("System")
-        case .light: LocalizedStringKey("Light")
-        case .dark: LocalizedStringKey("Dark")
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
         }
     }
 
@@ -3652,17 +3521,9 @@ struct SettingsView: View {
 
     /// The language ReadTime is currently shown in, written in that language.
     private var currentLanguage: String {
-        #if !SKIP
         let code = Bundle.main.preferredLocalizations.first ?? "en"
-        #else
-        let code = Locale.current.language.languageCode?.identifier ?? "en"
-        #endif
         let locale = Locale(identifier: code)
-        #if !SKIP
         return locale.localizedString(forIdentifier: code)?.capitalized(with: locale) ?? code
-        #else
-        return locale.localizedString(forIdentifier: code)?.capitalized ?? code
-        #endif
     }
 
     var body: some View {
@@ -4119,10 +3980,10 @@ struct RoadmapView: View {
             VStack(spacing: 14) {
                 Menu {
                     Picker("Filter", selection: $filter) {
-                        Text("All (\(roadmap.requests.count))").tag(nil as FeatureRequest.Status?)
+                        Text("All (\(roadmap.requests.count))").tag(FeatureRequest.Status?.none)
                         ForEach(FeatureRequest.Status.allCases) { status in
                             Text("\(Text(status.title)) (\(roadmap.requests.filter { $0.status == status }.count))")
-                                .tag(status as FeatureRequest.Status?)
+                                .tag(Optional(status))
                         }
                     }
                 } label: {
@@ -4261,7 +4122,7 @@ struct VoteButton: View {
                     .font(.subheadline)
                 Text("\(votes)")
                     .font(.subheadline.weight(.semibold))
-                    .monospacedDigits()
+                    .monospacedDigit()
             }
             .foregroundStyle(hasVoted ? Color.readTimePurple : Color.secondary)
             .frame(width: 44)
@@ -4314,7 +4175,7 @@ struct FeatureRequestDetailView: View {
                         .padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent)
-                .capsuleButtonShape()
+                .buttonBorderShape(.capsule)
                 .tint(current.hasVoted ? .secondary : .readTimePurple)
                 .padding(.top, 8)
             }
@@ -4339,7 +4200,7 @@ struct SuggestFeatureView: View {
                 Section {
                     TextField("Feature name", text: $title)
                     TextField("What should it do, and why would it help you?", text: $details, axis: .vertical)
-                        .lineRange(4, 10)
+                        .lineLimit(4...10)
                 } footer: {
                     Text("Suggestions are reviewed before they appear on the roadmap for everyone to vote on.")
                 }
@@ -4393,7 +4254,7 @@ enum LibraryTransfer {
     }
 
     private static var dateStamp: String {
-        DateText.iso(Date.now)
+        Date.now.formatted(.iso8601.year().month().day())
     }
 
     @MainActor
@@ -4401,7 +4262,7 @@ enum LibraryTransfer {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let url = temporaryFile(named: "ReadTime Backup \(dateStamp).json")
-        try encoder.encode(store.snapshot).write(to: url, options: Data.WritingOptions.atomic)
+        try encoder.encode(store.snapshot).write(to: url, options: .atomic)
         return url
     }
 
@@ -4411,8 +4272,8 @@ enum LibraryTransfer {
         for book in store.books {
             rows.append([
                 book.title, book.author, book.genre, String(book.totalPages), String(book.currentPage),
-                book.status.rawValue, book.rating.map { String($0) } ?? "",
-                book.finishedAt.map { DateText.iso($0) } ?? ""
+                book.status.rawValue, book.rating.map(String.init) ?? "",
+                book.finishedAt.map { $0.formatted(.iso8601.year().month().day()) } ?? ""
             ])
         }
         let csv = rows.map { $0.map(escape).joined(separator: ",") }.joined(separator: "\n")
@@ -4423,10 +4284,8 @@ enum LibraryTransfer {
 
     /// Reads files picked with `fileImporter`, which live outside the app's sandbox.
     private static func contents(of url: URL) throws -> Data {
-        #if !SKIP
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-        #endif
         return try Data(contentsOf: url)
     }
 
@@ -4436,11 +4295,11 @@ enum LibraryTransfer {
 
     /// Understands Goodreads and StoryGraph exports, and ReadTime's own CSV.
     static func books(fromCSV url: URL) throws -> [Book] {
-        let text = String(data: try contents(of: url), encoding: .utf8) ?? ""
+        let text = String(decoding: try contents(of: url), as: UTF8.self)
         let rows = parseCSV(text)
         guard let header = rows.first else { throw TransferError.noBooksFound }
         let columns = header.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
-        func column(_ names: String...) -> Int? { names.compactMap { columns.firstIndex(of: $0) }.first }
+        func column(_ names: String...) -> Int? { names.lazy.compactMap { columns.firstIndex(of: $0) }.first }
 
         guard let titleColumn = column("title") else { throw TransferError.noBooksFound }
         let authorColumn = column("author", "authors", "author l-f")
@@ -4478,11 +4337,7 @@ enum LibraryTransfer {
             case "currently-reading", "reading": status = .reading
             default: status = .wantToRead
             }
-            var rating: Int? = nil
-            if let stars = Double(value(ratingColumn)) {
-                let rounded = Int(stars.rounded())
-                if rounded >= 1 && rounded <= 5 { rating = rounded }
-            }
+            let rating = Double(value(ratingColumn)).map { Int($0.rounded()) }.flatMap { (1...5).contains($0) ? $0 : nil }
             let genre = value(genreColumn).components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? ""
             let author = value(authorColumn).components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? ""
 
@@ -4521,24 +4376,22 @@ enum LibraryTransfer {
             if inQuotes {
                 if char == "\"" {
                     if let next = iterator.next() {
-                        if next == "\"" { field += "\"" } else { inQuotes = false; pending = next }
+                        if next == "\"" { field.append("\"") } else { inQuotes = false; pending = next }
                     } else {
                         inQuotes = false
                     }
                 } else {
-                    field += String(char)
+                    field.append(char)
                 }
             } else {
-                if char == "\"" {
-                    inQuotes = true
-                } else if char == "," {
-                    row.append(field); field = ""
-                } else if char.isNewline {
+                switch char {
+                case "\"": inQuotes = true
+                case ",": row.append(field); field = ""
+                case "\n", "\r\n", "\r":
                     row.append(field); field = ""
                     if row.contains(where: { !$0.isEmpty }) { rows.append(row) }
                     row = []
-                } else {
-                    field += String(char)
+                default: field.append(char)
                 }
             }
         }
@@ -4606,20 +4459,20 @@ struct ImportExportView: View {
             backupURL = try? LibraryTransfer.backupFile(for: store)
             csvURL = try? LibraryTransfer.booksCSVFile(for: store)
         }
-        .filePicker(
+        .fileImporter(
             isPresented: Binding(get: { picking != nil }, set: { if !$0 { picking = nil } }),
-            kind: picking == .backup ? PickedFileKind.json : PickedFileKind.text,
-            onPick: { url in
-                let kind = picking
-                picking = nil
+            allowedContentTypes: picking == .backup ? [.json] : [.commaSeparatedText, .plainText]
+        ) { result in
+            let kind = picking
+            picking = nil
+            switch result {
+            case .success(let url):
                 handlePicked(url, kind: kind)
-            },
-            onError: { error in
-                picking = nil
+            case .failure(let error):
                 message = error.localizedDescription
             }
-        )
-        .confirmationDialog("Restore this backup?", isPresented: Binding(get: { pendingBackup != nil }, set: { if !$0 { pendingBackup = nil } }), titleVisibility: Visibility.visible) {
+        }
+        .confirmationDialog("Restore this backup?", isPresented: Binding(get: { pendingBackup != nil }, set: { if !$0 { pendingBackup = nil } }), titleVisibility: .visible) {
             Button("Replace Data on This iPhone", role: .destructive) {
                 if let pendingBackup {
                     store.restore(from: pendingBackup)
@@ -4802,7 +4655,7 @@ private struct OnboardingWelcomeStep: View {
                     .multilineTextAlignment(.center)
                     .padding(.top, 4)
             }
-            .capsuleButtonShape()
+            .buttonBorderShape(.capsule)
             .tint(.readTimePurple)
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
@@ -4834,10 +4687,10 @@ private struct OnboardingStepLayout<Content: View, Actions: View>: View {
                     ForEach(1...total, id: \.self) { index in
                         Capsule()
                             .fill(index <= progress ? Color.readTimePurple : Color.secondary.opacity(0.25))
-                            .frame(width: index == progress ? 24.0 : 8.0, height: 8)
+                            .frame(width: index == progress ? 24 : 8, height: 8)
                     }
                 }
-                .accessibilityCombined()
+                .accessibilityElement()
                 .accessibilityLabel(Text("Step \(progress) of \(total)"))
                 Spacer()
                 Color.clear.frame(width: 44, height: 44)
@@ -4862,8 +4715,8 @@ private struct OnboardingStepLayout<Content: View, Actions: View>: View {
             VStack(spacing: 10) {
                 actions()
             }
-            .capsuleButtonShape()
-            .largeControl()
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
             .tint(.readTimePurple)
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
@@ -4879,12 +4732,12 @@ private struct OnboardingSourceStep: View {
 
         var title: LocalizedStringKey {
             switch self {
-            case .appStore: LocalizedStringKey("App Store")
-            case .search: LocalizedStringKey("Google Search")
-            case .social: LocalizedStringKey("Facebook/Instagram/Threads")
-            case .video: LocalizedStringKey("TikTok/YouTube")
-            case .friends: LocalizedStringKey("Friends/family")
-            case .other: LocalizedStringKey("Other")
+            case .appStore: "App Store"
+            case .search: "Google Search"
+            case .social: "Facebook/Instagram/Threads"
+            case .video: "TikTok/YouTube"
+            case .friends: "Friends/family"
+            case .other: "Other"
             }
         }
 
@@ -4936,10 +4789,10 @@ private struct OnboardingSourceStep: View {
                             RoundedRectangle(cornerRadius: 14)
                                 .stroke(selection == source ? Color.readTimePurple : .clear, lineWidth: 2)
                         )
-                        .tappableRect()
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .selectedTrait(selection == source)
+                    .accessibilityAddTraits(selection == source ? .isSelected : [])
                 }
             }
         } actions: {
@@ -4996,16 +4849,14 @@ private struct OnboardingImportStep: View {
             }
             .buttonStyle(.borderedProminent)
         }
-        .filePicker(isPresented: $picking, kind: PickedFileKind.text, onPick: { url in
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
             do {
-                let books = try LibraryTransfer.books(fromCSV: url)
+                let books = try LibraryTransfer.books(fromCSV: result.get())
                 importedCount = (importedCount ?? 0) + store.importBooks(books)
             } catch {
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
-        }, onError: { error in
-            errorMessage = error.localizedDescription
-        })
+        }
         .alert("Import", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -5036,14 +4887,14 @@ private struct OnboardingImportStep: View {
             }
             .padding(16)
             .readTimeCard()
-            .tappableRect()
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 }
 
 private struct OnboardingGoalStep: View {
-    enum Choice { case minutesPerDay, booksPerYear }
+    private enum Choice { case minutesPerDay, booksPerYear }
 
     @EnvironmentObject private var store: ReadingStore
     let onBack: () -> Void
@@ -5068,7 +4919,7 @@ private struct OnboardingGoalStep: View {
                     isSelected: choice == .minutesPerDay,
                     onSelect: { choice = .minutesPerDay }
                 ) {
-                    BoundedStepper(String(localized: "Minutes per day"), value: $minutes, in: 5...180, step: 5)
+                    Stepper("Minutes per day", value: $minutes, in: 5...180, step: 5)
                         .labelsHidden()
                         .onChange(of: minutes) { _ in choice = .minutesPerDay }
                 }
@@ -5080,7 +4931,7 @@ private struct OnboardingGoalStep: View {
                     isSelected: choice == .booksPerYear,
                     onSelect: { choice = .booksPerYear }
                 ) {
-                    BoundedStepper(String(localized: "Books per year"), value: $books, in: 1...100)
+                    Stepper("Books per year", value: $books, in: 1...100)
                         .labelsHidden()
                         .onChange(of: books) { _ in choice = .booksPerYear }
                 }
@@ -5143,10 +4994,10 @@ private struct GoalChoiceCard<Accessory: View>: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(isSelected ? Color.readTimePurple : .clear, lineWidth: 2)
         )
-        .tappableRect()
-        .onTapGesture { onSelect() }
-        .accessibilityContaining()
-        .selectedTrait(isSelected)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -5197,7 +5048,7 @@ private struct OnboardingFirstBookStep: View {
                     .readTimeCard()
                     .overlay(
                         RoundedRectangle(cornerRadius: 14)
-                            .strokeBorder(Color.readTimePurple.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6.0]))
+                            .strokeBorder(Color.readTimePurple.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
                     )
                 }
                 .buttonStyle(.plain)
@@ -5243,7 +5094,7 @@ struct SectionHeader<Action: View>: View {
     let systemImage: String
     @ViewBuilder let action: () -> Action
 
-    init(title: LocalizedStringKey, systemImage: String, @ViewBuilder action: @escaping () -> Action) {
+    init(title: LocalizedStringKey, systemImage: String, @ViewBuilder action: @escaping () -> Action = { EmptyView() }) {
         self.title = title
         self.systemImage = systemImage
         self.action = action

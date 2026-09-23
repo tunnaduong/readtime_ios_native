@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reminder_channel_name">Nhắc đọc sách</string>
+    <string name="reminder_channel_description">Lời nhắc nhẹ nhàng để bạn cầm sách lên.</string>
+    <string name="reminder_title">Dành chút thời gian đọc sách</string>
+    <string name="reminder_body">Cuốn sách của bạn đang chờ chương tiếp theo.</string>
+    <string name="widget_current_book">Sách đang đọc</string>
+    <string name="widget_current_book_description">Cuốn bạn đang đọc và tiến độ tới đâu.</string>
+    <string name="widget_daily_goal">Mục tiêu hằng ngày</string>
+    <string name="widget_daily_goal_description">Số phút đọc hôm nay so với mục tiêu, và chuỗi ngày liên tiếp.</string>
+    <string name="widget_add_a_book">Thêm một cuốn sách để bắt đầu đọc</string>
+    <string name="widget_of_n_min">trên %1$d phút</string>
+    <string name="widget_n_day_streak">Chuỗi %1$d ngày</string>
+    <string name="widget_start_a_streak">Đọc hôm nay để bắt đầu chuỗi ngày</string>
+</resources>

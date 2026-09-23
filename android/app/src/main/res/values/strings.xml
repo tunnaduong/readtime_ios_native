@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ReadTime</string>
+    <string name="reminder_channel_name">Reading reminders</string>
+    <string name="reminder_channel_description">Your daily nudge to pick up your book.</string>
+    <string name="reminder_title">A little reading time</string>
+    <string name="reminder_body">Your book is waiting for the next chapter.</string>
+    <string name="widget_current_book">Current Book</string>
+    <string name="widget_current_book_description">The book you\'re reading and how far you\'ve got.</string>
+    <string name="widget_daily_goal">Daily Goal</string>
+    <string name="widget_daily_goal_description">Today\'s reading against your goal, and your streak.</string>
+    <string name="widget_add_a_book">Add a book to start reading</string>
+    <string name="widget_of_n_min">of %1$d min</string>
+    <string name="widget_n_day_streak">%1$d day streak</string>
+    <string name="widget_start_a_streak">Read today to start a streak</string>
+</resources>

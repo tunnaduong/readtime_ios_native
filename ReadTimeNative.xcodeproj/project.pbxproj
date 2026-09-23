@@ -32,11 +32,8 @@
 		B2C0FFEE0000000000000103 /* RoadmapCloudKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000003 /* RoadmapCloudKit.swift */; };
 		B2C0FFEE0000000000000104 /* AddBookPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000004 /* AddBookPhotoPicker.swift */; };
 		B2C0FFEE0000000000000105 /* PlatformBits.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000005 /* PlatformBits.swift */; };
-		B2C0FFEE0000000000000106 /* Portable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000006 /* Portable.swift */; };
-		B2C0FFEE0000000000000107 /* FilePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000007 /* FilePicker.swift */; };
-		B2C0FFEE0000000000000108 /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000008 /* PurchaseManager.swift */; };
-		B2C0FFEE0000000000000109 /* ChartViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000009 /* ChartViews.swift */; };
-		B2C0FFEE0000000000000110 /* AndroidRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000010 /* AndroidRoot.swift */; };
+		B2C0FFEE0000000000000106 /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000006 /* PurchaseManager.swift */; };
+		B2C0FFEE0000000000000107 /* ChartViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C0FFEE0000000000000007 /* ChartViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -71,11 +68,8 @@
 		B2C0FFEE0000000000000003 /* RoadmapCloudKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RoadmapCloudKit.swift; path = CloudSync/RoadmapCloudKit.swift; sourceTree = "<group>"; };
 		B2C0FFEE0000000000000004 /* AddBookPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AddBookPhotoPicker.swift; path = Media/AddBookPhotoPicker.swift; sourceTree = "<group>"; };
 		B2C0FFEE0000000000000005 /* PlatformBits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlatformBits.swift; path = PlatformUtil/PlatformBits.swift; sourceTree = "<group>"; };
-		B2C0FFEE0000000000000006 /* Portable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Portable.swift; path = PlatformUtil/Portable.swift; sourceTree = "<group>"; };
-		B2C0FFEE0000000000000007 /* FilePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FilePicker.swift; path = PlatformUtil/FilePicker.swift; sourceTree = "<group>"; };
-		B2C0FFEE0000000000000008 /* PurchaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PurchaseManager.swift; path = Purchases/PurchaseManager.swift; sourceTree = "<group>"; };
-		B2C0FFEE0000000000000009 /* ChartViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChartViews.swift; path = Stats/ChartViews.swift; sourceTree = "<group>"; };
-		B2C0FFEE0000000000000010 /* AndroidRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AndroidRoot.swift; path = Android/AndroidRoot.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000006 /* PurchaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PurchaseManager.swift; path = Purchases/PurchaseManager.swift; sourceTree = "<group>"; };
+		B2C0FFEE0000000000000007 /* ChartViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChartViews.swift; path = Stats/ChartViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -169,11 +163,8 @@
 				B2C0FFEE0000000000000003 /* RoadmapCloudKit.swift */,
 				B2C0FFEE0000000000000004 /* AddBookPhotoPicker.swift */,
 				B2C0FFEE0000000000000005 /* PlatformBits.swift */,
-				B2C0FFEE0000000000000006 /* Portable.swift */,
-				B2C0FFEE0000000000000007 /* FilePicker.swift */,
-				B2C0FFEE0000000000000008 /* PurchaseManager.swift */,
-				B2C0FFEE0000000000000009 /* ChartViews.swift */,
-				B2C0FFEE0000000000000010 /* AndroidRoot.swift */,
+				B2C0FFEE0000000000000006 /* PurchaseManager.swift */,
+				B2C0FFEE0000000000000007 /* ChartViews.swift */,
 				A1C0FFEE00000000000000G1 /* Config */,
 				A1C0FFEE00000000000000F2 /* ReadTime.entitlements */,
 				A1C0FFEE00000000000000F1 /* Localizable.xcstrings */,
@@ -348,11 +339,8 @@
 				B2C0FFEE0000000000000103 /* RoadmapCloudKit.swift in Sources */,
 				B2C0FFEE0000000000000104 /* AddBookPhotoPicker.swift in Sources */,
 				B2C0FFEE0000000000000105 /* PlatformBits.swift in Sources */,
-				B2C0FFEE0000000000000106 /* Portable.swift in Sources */,
-				B2C0FFEE0000000000000107 /* FilePicker.swift in Sources */,
-				B2C0FFEE0000000000000108 /* PurchaseManager.swift in Sources */,
-				B2C0FFEE0000000000000109 /* ChartViews.swift in Sources */,
-				B2C0FFEE0000000000000110 /* AndroidRoot.swift in Sources */,
+				B2C0FFEE0000000000000106 /* PurchaseManager.swift in Sources */,
+				B2C0FFEE0000000000000107 /* ChartViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

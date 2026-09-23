@@ -5,14 +5,3 @@ ReadTime/Config/Secrets.xcconfig
 xcuserdata/
 DerivedData/
 .DS_Store
-
-# Skip / Android build
-.build/
-.swiftpm/
-Android/.gradle/
-Android/.kotlin/
-Android/build/
-Android/app/build/
-Android/local.properties
-Android/app/keystore.jks
-Android/app/keystore.properties
