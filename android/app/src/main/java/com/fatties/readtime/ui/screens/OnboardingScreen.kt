@@ -213,7 +213,7 @@ private fun StepLayout(
     title: String,
     subtitle: String,
     onBack: () -> Unit,
-    actions: @Composable ColumnScopeActions,
+    actions: ColumnScopeActions,
     content: @Composable () -> Unit,
 ) {
     val total = 4
