@@ -20,6 +20,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Min SDK 26, target/compile SDK 35, Kotlin 2.0, Compose BOM 2024.12, Material 3.
 
+Publishing to Google Play: see [android/RELEASE.md](android/RELEASE.md).
+
 ## Layout
 
 | Path | What's in it |

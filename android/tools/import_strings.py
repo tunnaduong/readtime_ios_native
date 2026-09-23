@@ -75,6 +75,18 @@ def main() -> None:
     catalog = json.load(open(SOURCE, encoding="utf-8"))
     entries = catalog["strings"]
 
+    # Keys that are plurals in English must stay plurals in every language, or the
+    # translation lands as a different resource type and Android falls back to English.
+    plural_keys = {
+        key
+        for key, entry in entries.items()
+        if "plural" in entry.get("localizations", {}).get("en", {}).get("variations", {})
+        or any(
+            "plural" in localization.get("variations", {})
+            for localization in entry.get("localizations", {}).values()
+        )
+    }
+
     names = {}
     used = {}
     for key in sorted(entries):
@@ -102,6 +114,16 @@ def main() -> None:
                 continue
 
             name = names[key]
+            if key in plural_keys and "variations" not in localization:
+                # This language has one form; give it to the "other" category.
+                element = ET.SubElement(root, "plurals")
+                element.set("name", name)
+                item = ET.SubElement(element, "item")
+                item.set("quantity", "other")
+                item.text = convert_format(localization.get("stringUnit", {}).get("value", key))
+                wrote += 1
+                continue
+
             if "variations" in localization:
                 plural = localization["variations"].get("plural")
                 if not plural:

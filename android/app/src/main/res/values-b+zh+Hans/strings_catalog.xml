@@ -12,20 +12,36 @@
     <string name="s_s">%1$s%%</string>
     <string name="s_s_n_min">%1$s，%2$d 分钟</string>
     <string name="s_n">%1$d</string>
-    <string name="s_n_books">%1$d 本</string>
-    <string name="s_n_days">%1$d 天</string>
-    <string name="s_n_entries">%1$d 篇</string>
-    <string name="s_n_hours">%1$d 小时</string>
+    <plurals name="s_n_books">
+        <item quantity="other">%1$d 本</item>
+    </plurals>
+    <plurals name="s_n_days">
+        <item quantity="other">%1$d 天</item>
+    </plurals>
+    <plurals name="s_n_entries">
+        <item quantity="other">%1$d 篇</item>
+    </plurals>
+    <plurals name="s_n_hours">
+        <item quantity="other">%1$d 小时</item>
+    </plurals>
     <string name="s_n_min">%1$d 分钟</string>
     <string name="s_n_min_day">每天 %1$d 分钟</string>
-    <string name="s_n_mins">%1$d 分钟</string>
+    <plurals name="s_n_mins">
+        <item quantity="other">%1$d 分钟</item>
+    </plurals>
     <string name="s_n_of_n_books_finished">已读完 %1$d / %2$d 本</string>
     <string name="s_n_of_n_minutes_today">今天 %1$d / %2$d 分钟</string>
-    <string name="s_n_pages">%1$d 页</string>
+    <plurals name="s_n_pages">
+        <item quantity="other">%1$d 页</item>
+    </plurals>
     <string name="s_n_pages_s">%1$d 页 · %2$s</string>
     <string name="s_n_pages_hour">每小时 %1$d 页</string>
-    <string name="s_n_stars">%1$d 星</string>
-    <string name="s_n_weeks">%1$d 周</string>
+    <plurals name="s_n_stars">
+        <item quantity="other">%1$d 星</item>
+    </plurals>
+    <plurals name="s_n_weeks">
+        <item quantity="other">%1$d 周</item>
+    </plurals>
     <string name="s_n_2">%1$d%%</string>
     <string name="s_1_month">1 个月</string>
     <string name="s_12_months">12 个月</string>
@@ -54,7 +70,9 @@
     <string name="s_back">返回</string>
     <string name="s_back_up_now">立即备份</string>
     <string name="s_based_on_your_last_s_sessions">基于你最近 %1$s 次阅读</string>
-    <string name="s_based_on_your_last_n_sessions">基于你最近 %1$d 次阅读</string>
+    <plurals name="s_based_on_your_last_n_sessions">
+        <item quantity="other">基于你最近 %1$d 次阅读</item>
+    </plurals>
     <string name="s_book">图书</string>
     <string name="s_book_details">图书详情</string>
     <string name="s_book_status">图书状态</string>
@@ -163,7 +181,9 @@
     <string name="s_import_from_goodreads_or_storygraph">从 Goodreads 或 StoryGraph 导入</string>
     <string name="s_import_from_storygraph">从 StoryGraph 导入</string>
     <string name="s_import_your_library_from_another_reading_app_you_can_also_do">从其他阅读 App 导入你的书架。你也可以稍后在设置中导入。</string>
-    <string name="s_imported_n_books">已导入 %1$d 本书</string>
+    <plurals name="s_imported_n_books">
+        <item quantity="other">已导入 %1$d 本书</item>
+    </plurals>
     <string name="s_imported_n_books_n_were_already_in_your_library">已导入 %1$d 本书，%2$d 本已在书架中。</string>
     <string name="s_in_goodreads_go_to_my_books_import_and_export_export_library">在 Goodreads 中前往 My Books → Import and export → Export Library；在 StoryGraph 中前往 Manage Account → Export StoryGraph Library。书架中已有的书会被跳过。</string>
     <string name="s_in_progress">进行中</string>
@@ -218,8 +238,12 @@
     <string name="s_previous_period">上一时段</string>
     <string name="s_rate_readtime">为 ReadTime 评分</string>
     <string name="s_rating">评分</string>
-    <string name="s_read_n_books_a_year">每年读 %1$d 本书</string>
-    <string name="s_read_n_minutes_a_day">每天阅读 %1$d 分钟</string>
+    <plurals name="s_read_n_books_a_year">
+        <item quantity="other">每年读 %1$d 本书</item>
+    </plurals>
+    <plurals name="s_read_n_minutes_a_day">
+        <item quantity="other">每天阅读 %1$d 分钟</item>
+    </plurals>
     <string name="s_read_now">开始阅读</string>
     <string name="s_read_per_day">每天阅读</string>
     <string name="s_read_today">今日阅读</string>
@@ -240,7 +264,9 @@
     <string name="s_remind_me_at">提醒时间</string>
     <string name="s_reminders_on">已开启提醒</string>
     <string name="s_remove_cover">移除封面</string>
-    <string name="s_remove_vote_n_votes">取消投票，%1$d 票</string>
+    <plurals name="s_remove_vote_n_votes">
+        <item quantity="other">取消投票，%1$d 票</item>
+    </plurals>
     <string name="s_replace_data_on_this_iphone">替换此 iPhone 上的数据</string>
     <string name="s_rest_day">休息日</string>
     <string name="s_rest_day_today_you_ve_read_s_minutes">今天是休息日。你已阅读 %1$s 分钟。</string>
@@ -328,7 +354,9 @@
     <string name="s_value">数值</string>
     <string name="s_version_s">版本 %1$s</string>
     <string name="s_vote_n">投票 · %1$d</string>
-    <string name="s_vote_n_votes">投票，%1$d 票</string>
+    <plurals name="s_vote_n_votes">
+        <item quantity="other">投票，%1$d 票</item>
+    </plurals>
     <string name="s_voted_n">已投票 · %1$d</string>
     <string name="s_want_to_read">想读</string>
     <string name="s_weekly_tracking">本周追踪</string>
@@ -343,7 +371,9 @@
     <string name="s_write_down_quotes_ideas_and_feelings_from_your_reading_entri">记下阅读中的摘抄、想法和感受。完成一次阅读时也会添加日记。</string>
     <string name="s_yearly_book_goal">年度读书目标</string>
     <string name="s_yearly_goal">年度目标</string>
-    <string name="s_yearly_goal_n_books">年度目标：%1$d 本</string>
+    <plurals name="s_yearly_goal_n_books">
+        <item quantity="other">年度目标：%1$d 本</item>
+    </plurals>
     <string name="s_yesterday">昨天</string>
     <string name="s_you_can_load_or_clear_demo_content_anytime_in_settings">你随时可以在设置中载入或清除示例内容。</string>
     <string name="s_you_have_made_good_progress_on_your_goals">你的目标进展很不错！</string>

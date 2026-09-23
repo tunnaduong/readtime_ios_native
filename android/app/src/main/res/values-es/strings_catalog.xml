@@ -30,7 +30,9 @@
     </plurals>
     <string name="s_n_min">%1$d min</string>
     <string name="s_n_min_day">%1$d min/día</string>
-    <string name="s_n_mins">%1$d min</string>
+    <plurals name="s_n_mins">
+        <item quantity="other">%1$d min</item>
+    </plurals>
     <string name="s_n_of_n_books_finished">%1$d de %2$d libros terminados</string>
     <string name="s_n_of_n_minutes_today">%1$d de %2$d minutos hoy</string>
     <plurals name="s_n_pages">

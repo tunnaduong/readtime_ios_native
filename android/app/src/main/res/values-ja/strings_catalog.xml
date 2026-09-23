@@ -12,20 +12,36 @@
     <string name="s_s">%1$s%%</string>
     <string name="s_s_n_min">%1$s、%2$d 分</string>
     <string name="s_n">%1$d</string>
-    <string name="s_n_books">%1$d 冊</string>
-    <string name="s_n_days">%1$d日</string>
-    <string name="s_n_entries">%1$d 件</string>
-    <string name="s_n_hours">%1$d 時間</string>
+    <plurals name="s_n_books">
+        <item quantity="other">%1$d 冊</item>
+    </plurals>
+    <plurals name="s_n_days">
+        <item quantity="other">%1$d日</item>
+    </plurals>
+    <plurals name="s_n_entries">
+        <item quantity="other">%1$d 件</item>
+    </plurals>
+    <plurals name="s_n_hours">
+        <item quantity="other">%1$d 時間</item>
+    </plurals>
     <string name="s_n_min">%1$d 分</string>
     <string name="s_n_min_day">1日%1$d分</string>
-    <string name="s_n_mins">%1$d 分</string>
+    <plurals name="s_n_mins">
+        <item quantity="other">%1$d 分</item>
+    </plurals>
     <string name="s_n_of_n_books_finished">%1$d / %2$d 冊 読了</string>
     <string name="s_n_of_n_minutes_today">今日 %1$d / %2$d 分</string>
-    <string name="s_n_pages">%1$d ページ</string>
+    <plurals name="s_n_pages">
+        <item quantity="other">%1$d ページ</item>
+    </plurals>
     <string name="s_n_pages_s">%1$d ページ · %2$s</string>
     <string name="s_n_pages_hour">%1$d ページ/時間</string>
-    <string name="s_n_stars">星 %1$d</string>
-    <string name="s_n_weeks">%1$d 週間</string>
+    <plurals name="s_n_stars">
+        <item quantity="other">星 %1$d</item>
+    </plurals>
+    <plurals name="s_n_weeks">
+        <item quantity="other">%1$d 週間</item>
+    </plurals>
     <string name="s_n_2">%1$d%%</string>
     <string name="s_1_month">1か月</string>
     <string name="s_12_months">12か月</string>
@@ -54,7 +70,9 @@
     <string name="s_back">戻る</string>
     <string name="s_back_up_now">今すぐバックアップ</string>
     <string name="s_based_on_your_last_s_sessions">直近 %1$s 回のセッションに基づく</string>
-    <string name="s_based_on_your_last_n_sessions">直近 %1$d 回のセッションに基づく</string>
+    <plurals name="s_based_on_your_last_n_sessions">
+        <item quantity="other">直近 %1$d 回のセッションに基づく</item>
+    </plurals>
     <string name="s_book">本</string>
     <string name="s_book_details">本の詳細</string>
     <string name="s_book_status">本のステータス</string>
@@ -163,7 +181,9 @@
     <string name="s_import_from_goodreads_or_storygraph">Goodreads または StoryGraph から読み込む</string>
     <string name="s_import_from_storygraph">StoryGraph から読み込む</string>
     <string name="s_import_your_library_from_another_reading_app_you_can_also_do">他の読書アプリからライブラリを読み込みます。あとで設定から行うこともできます。</string>
-    <string name="s_imported_n_books">%1$d冊の本を読み込みました</string>
+    <plurals name="s_imported_n_books">
+        <item quantity="other">%1$d冊の本を読み込みました</item>
+    </plurals>
     <string name="s_imported_n_books_n_were_already_in_your_library">%1$d冊を読み込みました。%2$d冊はすでにライブラリにありました。</string>
     <string name="s_in_goodreads_go_to_my_books_import_and_export_export_library">Goodreads では My Books → Import and export → Export Library、StoryGraph では Manage Account → Export StoryGraph Library を開きます。ライブラリにある本はスキップされます。</string>
     <string name="s_in_progress">進行中</string>
@@ -218,8 +238,12 @@
     <string name="s_previous_period">前の期間</string>
     <string name="s_rate_readtime">ReadTime を評価</string>
     <string name="s_rating">評価</string>
-    <string name="s_read_n_books_a_year">1年で%1$d冊読む</string>
-    <string name="s_read_n_minutes_a_day">1日%1$d分読む</string>
+    <plurals name="s_read_n_books_a_year">
+        <item quantity="other">1年で%1$d冊読む</item>
+    </plurals>
+    <plurals name="s_read_n_minutes_a_day">
+        <item quantity="other">1日%1$d分読む</item>
+    </plurals>
     <string name="s_read_now">今すぐ読む</string>
     <string name="s_read_per_day">1日の読書時間</string>
     <string name="s_read_today">今日の読書</string>
@@ -240,7 +264,9 @@
     <string name="s_remind_me_at">通知時刻</string>
     <string name="s_reminders_on">リマインダー オン</string>
     <string name="s_remove_cover">表紙を削除</string>
-    <string name="s_remove_vote_n_votes">投票を取り消す、%1$d票</string>
+    <plurals name="s_remove_vote_n_votes">
+        <item quantity="other">投票を取り消す、%1$d票</item>
+    </plurals>
     <string name="s_replace_data_on_this_iphone">この iPhone のデータを置き換える</string>
     <string name="s_rest_day">休みの日</string>
     <string name="s_rest_day_today_you_ve_read_s_minutes">今日は休みの日です。%1$s 分読みました。</string>
@@ -328,7 +354,9 @@
     <string name="s_value">値</string>
     <string name="s_version_s">バージョン %1$s</string>
     <string name="s_vote_n">投票 · %1$d</string>
-    <string name="s_vote_n_votes">投票する、%1$d票</string>
+    <plurals name="s_vote_n_votes">
+        <item quantity="other">投票する、%1$d票</item>
+    </plurals>
     <string name="s_voted_n">投票済み · %1$d</string>
     <string name="s_want_to_read">読みたい</string>
     <string name="s_weekly_tracking">今週の記録</string>
@@ -343,7 +371,9 @@
     <string name="s_write_down_quotes_ideas_and_feelings_from_your_reading_entri">読書中の引用、アイデア、気持ちを書き留めましょう。読書セッションを終えたときにも記録が追加されます。</string>
     <string name="s_yearly_book_goal">年間の読書目標</string>
     <string name="s_yearly_goal">年間目標</string>
-    <string name="s_yearly_goal_n_books">年間目標：%1$d 冊</string>
+    <plurals name="s_yearly_goal_n_books">
+        <item quantity="other">年間目標：%1$d 冊</item>
+    </plurals>
     <string name="s_yesterday">昨日</string>
     <string name="s_you_can_load_or_clear_demo_content_anytime_in_settings">デモコンテンツはいつでも設定から読み込んだり消去したりできます。</string>
     <string name="s_you_have_made_good_progress_on_your_goals">目標に向けて順調に進んでいます！</string>

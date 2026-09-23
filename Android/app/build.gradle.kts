@@ -7,6 +7,11 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Release signing, kept out of git: copy android/keystore.properties.example and fill it in.
+val keystoreProperties = Properties()
+val keystoreFile = rootProject.file("keystore.properties")
+if (keystoreFile.exists()) keystoreFile.inputStream().use { keystoreProperties.load(it) }
+
 android {
     namespace = "com.fatties.readtime"
     compileSdk = 35
@@ -31,8 +36,22 @@ android {
         buildConfigField("String", "PREMIUM_PRODUCT_ID", "\"com.fatties.readtime.premium\"")
     }
 
+    signingConfigs {
+        if (keystoreFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Falls back to the debug key so a release build can be smoke-tested locally.
+            // Play rejects debug-signed uploads, so this can't ship by accident.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

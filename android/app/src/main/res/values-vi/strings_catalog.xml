@@ -12,20 +12,36 @@
     <string name="s_s">%1$s%%</string>
     <string name="s_s_n_min">%1$s, %2$d phút</string>
     <string name="s_n">%1$d</string>
-    <string name="s_n_books">%1$d cuốn</string>
-    <string name="s_n_days">%1$d ngày</string>
-    <string name="s_n_entries">%1$d ghi chép</string>
-    <string name="s_n_hours">%1$d giờ</string>
+    <plurals name="s_n_books">
+        <item quantity="other">%1$d cuốn</item>
+    </plurals>
+    <plurals name="s_n_days">
+        <item quantity="other">%1$d ngày</item>
+    </plurals>
+    <plurals name="s_n_entries">
+        <item quantity="other">%1$d ghi chép</item>
+    </plurals>
+    <plurals name="s_n_hours">
+        <item quantity="other">%1$d giờ</item>
+    </plurals>
     <string name="s_n_min">%1$d phút</string>
     <string name="s_n_min_day">%1$d phút/ngày</string>
-    <string name="s_n_mins">%1$d phút</string>
+    <plurals name="s_n_mins">
+        <item quantity="other">%1$d phút</item>
+    </plurals>
     <string name="s_n_of_n_books_finished">Đã đọc xong %1$d / %2$d cuốn</string>
     <string name="s_n_of_n_minutes_today">Hôm nay %1$d / %2$d phút</string>
-    <string name="s_n_pages">%1$d trang</string>
+    <plurals name="s_n_pages">
+        <item quantity="other">%1$d trang</item>
+    </plurals>
     <string name="s_n_pages_s">%1$d trang · %2$s</string>
     <string name="s_n_pages_hour">%1$d trang/giờ</string>
-    <string name="s_n_stars">%1$d sao</string>
-    <string name="s_n_weeks">%1$d tuần</string>
+    <plurals name="s_n_stars">
+        <item quantity="other">%1$d sao</item>
+    </plurals>
+    <plurals name="s_n_weeks">
+        <item quantity="other">%1$d tuần</item>
+    </plurals>
     <string name="s_n_2">%1$d%%</string>
     <string name="s_1_month">1 tháng</string>
     <string name="s_12_months">12 tháng</string>
@@ -54,7 +70,9 @@
     <string name="s_back">Quay lại</string>
     <string name="s_back_up_now">Sao lưu ngay</string>
     <string name="s_based_on_your_last_s_sessions">Dựa trên %1$s phiên đọc gần nhất</string>
-    <string name="s_based_on_your_last_n_sessions">Dựa trên %1$d phiên đọc gần nhất</string>
+    <plurals name="s_based_on_your_last_n_sessions">
+        <item quantity="other">Dựa trên %1$d phiên đọc gần nhất</item>
+    </plurals>
     <string name="s_book">Sách</string>
     <string name="s_book_details">Thông tin sách</string>
     <string name="s_book_status">Trạng thái sách</string>
@@ -163,7 +181,9 @@
     <string name="s_import_from_goodreads_or_storygraph">Nhập từ Goodreads hoặc StoryGraph</string>
     <string name="s_import_from_storygraph">Nhập từ StoryGraph</string>
     <string name="s_import_your_library_from_another_reading_app_you_can_also_do">Nhập thư viện từ app đọc sách khác. Bạn cũng có thể làm việc này sau trong Cài đặt.</string>
-    <string name="s_imported_n_books">Đã nhập %1$d cuốn sách</string>
+    <plurals name="s_imported_n_books">
+        <item quantity="other">Đã nhập %1$d cuốn sách</item>
+    </plurals>
     <string name="s_imported_n_books_n_were_already_in_your_library">Đã nhập %1$d cuốn sách. %2$d cuốn đã có trong thư viện.</string>
     <string name="s_in_goodreads_go_to_my_books_import_and_export_export_library">Trên Goodreads, vào My Books → Import and export → Export Library. Trên StoryGraph, vào Manage Account → Export StoryGraph Library. Sách đã có trong thư viện sẽ được bỏ qua.</string>
     <string name="s_in_progress">Đang làm</string>
@@ -218,8 +238,12 @@
     <string name="s_previous_period">Kỳ trước</string>
     <string name="s_rate_readtime">Đánh giá ReadTime</string>
     <string name="s_rating">Đánh giá</string>
-    <string name="s_read_n_books_a_year">Đọc %1$d cuốn sách mỗi năm</string>
-    <string name="s_read_n_minutes_a_day">Đọc %1$d phút mỗi ngày</string>
+    <plurals name="s_read_n_books_a_year">
+        <item quantity="other">Đọc %1$d cuốn sách mỗi năm</item>
+    </plurals>
+    <plurals name="s_read_n_minutes_a_day">
+        <item quantity="other">Đọc %1$d phút mỗi ngày</item>
+    </plurals>
     <string name="s_read_now">Đọc ngay</string>
     <string name="s_read_per_day">Đọc mỗi ngày</string>
     <string name="s_read_today">Đã đọc hôm nay</string>
@@ -240,7 +264,9 @@
     <string name="s_remind_me_at">Nhắc tôi lúc</string>
     <string name="s_reminders_on">Đã bật nhắc nhở</string>
     <string name="s_remove_cover">Xóa ảnh bìa</string>
-    <string name="s_remove_vote_n_votes">Bỏ bình chọn, %1$d lượt</string>
+    <plurals name="s_remove_vote_n_votes">
+        <item quantity="other">Bỏ bình chọn, %1$d lượt</item>
+    </plurals>
     <string name="s_replace_data_on_this_iphone">Thay thế dữ liệu trên iPhone này</string>
     <string name="s_rest_day">Ngày nghỉ</string>
     <string name="s_rest_day_today_you_ve_read_s_minutes">Hôm nay là ngày nghỉ. Bạn đã đọc %1$s phút.</string>
@@ -328,7 +354,9 @@
     <string name="s_value">Giá trị</string>
     <string name="s_version_s">Phiên bản %1$s</string>
     <string name="s_vote_n">Bình chọn · %1$d</string>
-    <string name="s_vote_n_votes">Bình chọn, %1$d lượt</string>
+    <plurals name="s_vote_n_votes">
+        <item quantity="other">Bình chọn, %1$d lượt</item>
+    </plurals>
     <string name="s_voted_n">Đã bình chọn · %1$d</string>
     <string name="s_want_to_read">Muốn đọc</string>
     <string name="s_weekly_tracking">Theo dõi trong tuần</string>
@@ -343,7 +371,9 @@
     <string name="s_write_down_quotes_ideas_and_feelings_from_your_reading_entri">Ghi lại trích dẫn, ý tưởng và cảm nhận khi đọc. Ghi chép cũng được thêm khi bạn hoàn thành một phiên đọc.</string>
     <string name="s_yearly_book_goal">Mục tiêu sách mỗi năm</string>
     <string name="s_yearly_goal">Mục tiêu năm</string>
-    <string name="s_yearly_goal_n_books">Mục tiêu năm: %1$d cuốn</string>
+    <plurals name="s_yearly_goal_n_books">
+        <item quantity="other">Mục tiêu năm: %1$d cuốn</item>
+    </plurals>
     <string name="s_yesterday">Hôm qua</string>
     <string name="s_you_can_load_or_clear_demo_content_anytime_in_settings">Bạn có thể tải hoặc xóa nội dung mẫu bất cứ lúc nào trong Cài đặt.</string>
     <string name="s_you_have_made_good_progress_on_your_goals">Bạn đã có tiến bộ tốt với mục tiêu của mình!</string>
