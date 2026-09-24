@@ -1,7 +1,8 @@
 # Store listing assets
 
 - `feature-graphic.png` — Google Play feature graphic, 1024 × 500.
-- `screenshots/` — six phone screenshots, 1080 × 1920, each with a caption above the phone.
+- `screenshots/` — six Google Play phone screenshots, 1080 × 1920, each with a caption above the phone.
+- `screenshots-ios/` — the same six for App Store Connect (iPhone 6.9" display), 1320 × 2868.
 - `raw/` — the plain simulator captures (iPhone 17, 1206 × 2622) the screenshots are built from.
 
 ## Regenerate

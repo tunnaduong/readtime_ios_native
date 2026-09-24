@@ -84,34 +84,43 @@ let shots: [(file: String, title: String, subtitle: String)] = [
     ("journal", "Remember what moved you",       "Write a note after each session and keep it forever"),
 ]
 
-let W: CGFloat = 1080, H: CGFloat = 1920
-for (index, shot) in shots.enumerated() {
-    guard let raw = NSImage(contentsOfFile: "\(rawDir)/\(shot.file).png") else { print("missing \(shot.file)"); continue }
-    let img = render(size: NSSize(width: W, height: H)) { ctx in
-        gradient(ctx, rect: CGRect(x: 0, y: 0, width: W, height: H), colors: [purpleLight, purple, purpleDark],
-                 start: CGPoint(x: 0, y: H), end: CGPoint(x: W, y: 0))
-        // Soft glow behind the phone
-        ctx.saveGState()
-        let glow = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                              colors: [NSColor.white.withAlphaComponent(0.18).cgColor, NSColor.white.withAlphaComponent(0).cgColor] as CFArray, locations: [0, 1])!
-        ctx.drawRadialGradient(glow, startCenter: CGPoint(x: W/2, y: 700), startRadius: 0, endCenter: CGPoint(x: W/2, y: 700), endRadius: 900, options: [])
-        ctx.restoreGState()
+// Google Play phone screenshots (9:16) and App Store iPhone 6.9" screenshots.
+let targets: [(dir: String, w: CGFloat, h: CGFloat)] = [
+    ("screenshots", 1080, 1920),
+    ("screenshots-ios", 1320, 2868),
+]
+for target in targets {
+    let W = target.w, H = target.h
+    let k = W / 1080  // scale every layout constant from the 1080-wide design
+    for (index, shot) in shots.enumerated() {
+        guard let raw = NSImage(contentsOfFile: "\(rawDir)/\(shot.file).png") else { print("missing \(shot.file)"); continue }
+        let img = render(size: NSSize(width: W, height: H)) { ctx in
+            gradient(ctx, rect: CGRect(x: 0, y: 0, width: W, height: H), colors: [purpleLight, purple, purpleDark],
+                     start: CGPoint(x: 0, y: H), end: CGPoint(x: W, y: 0))
+            // Soft glow behind the phone
+            ctx.saveGState()
+            let glow = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                  colors: [NSColor.white.withAlphaComponent(0.18).cgColor, NSColor.white.withAlphaComponent(0).cgColor] as CFArray, locations: [0, 1])!
+            let glowCenter = CGPoint(x: W/2, y: H - 1220 * k)
+            ctx.drawRadialGradient(glow, startCenter: glowCenter, startRadius: 0, endCenter: glowCenter, endRadius: 900 * k, options: [])
+            ctx.restoreGState()
 
-        // Caption block (top)
-        drawText(shot.title, font: NSFont.systemFont(ofSize: 78, weight: .bold), color: .white,
-                 in: CGRect(x: 80, y: H - 300, width: W - 160, height: 210))
-        drawText(shot.subtitle, font: NSFont.systemFont(ofSize: 36, weight: .medium), color: NSColor.white.withAlphaComponent(0.85),
-                 in: CGRect(x: 120, y: H - 440, width: W - 240, height: 120))
+            // Caption block (top)
+            drawText(shot.title, font: NSFont.systemFont(ofSize: 78 * k, weight: .bold), color: .white,
+                     in: CGRect(x: 80 * k, y: H - 300 * k, width: W - 160 * k, height: 210 * k))
+            drawText(shot.subtitle, font: NSFont.systemFont(ofSize: 36 * k, weight: .medium), color: NSColor.white.withAlphaComponent(0.85),
+                     in: CGRect(x: 120 * k, y: H - 440 * k, width: W - 240 * k, height: 120 * k))
 
-        // Phone (raw screenshot aspect), bottom edge runs off the canvas
-        let aspect = raw.size.height / raw.size.width
-        let phoneW: CGFloat = 860
-        let phoneH = phoneW * aspect
-        let rect = CGRect(x: (W - phoneW) / 2, y: H - 470 - phoneH, width: phoneW, height: phoneH)
-        drawPhone(ctx, image: raw, rect: rect, radius: 100)
+            // Phone (raw screenshot aspect), bottom edge runs off the canvas
+            let aspect = raw.size.height / raw.size.width
+            let phoneW: CGFloat = 860 * k
+            let phoneH = phoneW * aspect
+            let rect = CGRect(x: (W - phoneW) / 2, y: H - 470 * k - phoneH, width: phoneW, height: phoneH)
+            drawPhone(ctx, image: raw, rect: rect, radius: 100 * k)
+        }
+        savePNG(img, size: NSSize(width: W, height: H), to: "\(outDir)/\(target.dir)/\(index + 1)-\(shot.file).png")
+        print("wrote \(target.dir)/\(index + 1)-\(shot.file).png")
     }
-    savePNG(img, size: NSSize(width: W, height: H), to: "\(outDir)/screenshots/\(index + 1)-\(shot.file).png")
-    print("wrote \(index + 1)-\(shot.file).png")
 }
 
 // MARK: - Feature graphic (1024 x 500)
